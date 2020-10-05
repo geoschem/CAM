@@ -59,7 +59,7 @@
       INTEGER, PARAMETER :: phtcnt = 40, & ! number of photolysis reactions
                             rxntot = 212, & ! number of total reactions
                             gascnt = 172, & ! number of gas phase reactions
-                            nabscol = 2, & ! number of absorbing column densities
+                            nabscol = 1, & ! number of absorbing column densities
                             gas_pcnst = 317, & ! number of "gas phase" species
                             nfs = 6, & ! number of "fixed" species
                             relcnt = 0, & ! number of relationship species

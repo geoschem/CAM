@@ -150,13 +150,21 @@ module chemistry
 #define LANDTYPE_CLM      0
 
   ! Filenames to compute dry deposition velocities similarly to MOZART
-  character(len=shr_kind_cl)  :: clim_soilw_file = 'clim_soilw_file'
-  character(len=shr_kind_cl)  :: depvel_file     = ''
-  character(len=shr_kind_cl)  :: depvel_lnd_file = 'depvel_lnd_file'
-  character(len=shr_kind_cl)  :: season_wes_file = 'season_wes_file'
+  character(len=shr_kind_cl) :: clim_soilw_file = 'clim_soilw_file'
+  character(len=shr_kind_cl) :: depvel_file     = ''
+  character(len=shr_kind_cl) :: depvel_lnd_file = 'depvel_lnd_file'
+  character(len=shr_kind_cl) :: season_wes_file = 'season_wes_file'
 
   character(len=shr_kind_cl) :: srf_emis_specifier(pcnst) = ''
   character(len=shr_kind_cl) :: ext_frc_specifier(pcnst) = ''
+
+  ! Filenames used for photolysis
+  character(len=shr_kind_cl) :: exo_coldens_file = ''
+  integer                    :: n_exo_levs
+  real(r8), allocatable      :: o3_exo_colDU(:,:,:)
+  logical                    :: has_o3_col
+  real(r8), allocatable      :: days(:)
+  real(r8), allocatable      :: levs(:)
 
   character(len=24)  :: srf_emis_type = 'CYCLICAL' ! 'CYCLICAL' | 'SERIAL' |  'INTERP_MISSING_MONTHS'
   integer            :: srf_emis_cycle_yr  = 0
@@ -646,6 +654,7 @@ contains
     ! aerosol dry deposition
     namelist /chem_inparm/ clim_soilw_file,    &
                            depvel_file,        &
+                           exo_coldens_file,   &
                            depvel_lnd_file,    &
                            ext_frc_cycle_yr,   &
                            ext_frc_specifier,  &
@@ -924,6 +933,16 @@ contains
     use physics_buffer,   only : physics_buffer_desc, pbuf_get_index
     use cam_history,      only : addfld, add_default, horiz_only
     use chem_mods,        only : map2GC_dryDep, drySpc_ndx
+    use interpolate_data, only: lininterp_init, lininterp, lininterp_finish, interp_type
+    use time_manager,     only : get_calday
+    use pio,              only : file_desc_t, var_desc_t
+    use cam_pio_utils,    only : cam_pio_openfile
+    use iofilemod,        only : getfil
+    use pio,              only : pio_closefile, pio_inq_dimid, pio_inq_dimlen
+    use pio,              only : pio_inq_varid, pio_get_var
+    use pio,              only : pio_nowrite, file_desc_t
+    use phys_grid,        only : get_ncols_p, get_rlat_all_p
+    use mo_constants,     only : d2r
 
 #ifdef SPMD
     use mpishorthand
@@ -1000,6 +1019,12 @@ contains
     INTEGER                :: I, J, L, N, M
     INTEGER                :: RC
     INTEGER                :: nLinoz
+    INTEGER                :: dimid
+    INTEGER                :: nlat
+    INTEGER                :: ntimes
+    INTEGER                :: astat
+    INTEGER                :: c, ncols
+    INTEGER, ALLOCATABLE   :: dates(:)
 
     ! Logicals
     LOGICAL                :: prtDebug
@@ -1009,9 +1034,14 @@ contains
     CHARACTER(LEN=255)     :: historyConfigFile
     CHARACTER(LEN=255)     :: SpcName
     CHARACTER(LEN=255)     :: tagName
+    CHARACTER(LEN=256)     :: locfn
+    CHARACTER(LEN=256)     :: filespec
 
     ! Objects
     TYPE(Species), POINTER :: SpcInfo
+    TYPE(file_desc_t)      :: ncid
+    TYPE(var_desc_t)       :: vid
+    TYPE(interp_type)      :: lat_wgts
 
     ! Grid setup
     REAL(fp)               :: lonVal,  latVal
@@ -1022,6 +1052,11 @@ contains
 
     REAL(r8), ALLOCATABLE  :: Col_Area(:)
     REAL(fp), ALLOCATABLE  :: Ap_CAM_Flip(:), Bp_CAM_Flip(:)
+
+    REAL(r8), ALLOCATABLE  :: lats(:)
+    REAL(r8), ALLOCATABLE  :: coldens(:,:,:)
+    REAL(r8)               :: to_lats(pcols)
+    REAL(r8), PARAMETER    :: hPa2Pa = 100._r8
 
     !REAL(r8),      POINTER :: SlsPtr(:,:,:)
 
@@ -1714,6 +1749,107 @@ contains
     ! Free pointer
     SpcInfo => NULL()
 
+    ! Read O3 column file. Code copied from mozart/mo_photo.F90
+    has_o3_col = .False.
+    IF ( iO3 > 0 ) has_o3_col = .True.
+
+    IF ( len_trim(exo_coldens_file) == 0 ) has_o3_col = .False.
+
+    IF ( has_o3_col ) THEN
+       filespec = trim( exo_coldens_file )
+       call getfil( filespec, locfn, 0 )
+       call cam_pio_openfile( ncid, trim(locfn), PIO_NOWRITE )
+
+       !-----------------------------------------------------------------------
+       !       ... get grid dimensions from file
+       !-----------------------------------------------------------------------
+       !       ... timing
+       !-----------------------------------------------------------------------
+       ierr = pio_inq_dimid( ncid, 'month', dimid )
+       ierr = pio_inq_dimlen( ncid, dimid, ntimes )
+
+       if( ntimes /= 12 ) then
+          call endrun('photo_inti: exo coldens is not annual period')
+       end if
+       allocate( dates(ntimes),days(ntimes),stat=astat )
+       if( astat /= 0 ) then
+          write(iulog,*) 'photo_inti: dates,days allocation error = ',astat
+          call endrun
+       end if
+       dates(:) = (/ 116, 214, 316, 415,  516,  615, &
+            716, 816, 915, 1016, 1115, 1216 /)
+       !-----------------------------------------------------------------------
+       !	... initialize the monthly day of year times
+       !-----------------------------------------------------------------------
+       do n = 1,ntimes
+          days(n) = get_calday( dates(n), 0 )
+       end do
+       deallocate( dates )
+       !-----------------------------------------------------------------------
+       !       ... latitudes
+       !-----------------------------------------------------------------------
+       ierr = pio_inq_dimid( ncid, 'lat', dimid )
+       ierr = pio_inq_dimlen( ncid, dimid, nlat )
+       allocate( lats(nlat), stat=astat )
+       if( astat /= 0 ) then
+          write(iulog,*) 'photo_inti: lats allocation error = ',astat
+          call endrun
+       end if
+       ierr = pio_inq_varid( ncid, 'lat', vid )
+       ierr = pio_get_var( ncid, vid, lats )
+       lats(:nlat) = lats(:nlat) * d2r
+       !-----------------------------------------------------------------------
+       !       ... levels
+       !-----------------------------------------------------------------------
+       ierr = pio_inq_dimid( ncid, 'lev', dimid )
+       ierr = pio_inq_dimlen( ncid, dimid, n_exo_levs )
+       allocate( levs(n_exo_levs), stat=astat )
+       if( astat /= 0 ) then
+          write(iulog,*) 'photo_inti: levs allocation error = ',astat
+          call endrun
+       end if
+       ierr = pio_inq_varid( ncid, 'lev', vid )
+       ierr = pio_get_var( ncid, vid, levs )
+       levs(:n_exo_levs) = levs(:n_exo_levs) * hPa2Pa
+       !-----------------------------------------------------------------------
+       !       ... set up regridding
+       !-----------------------------------------------------------------------
+
+       allocate( coldens(nlat,n_exo_levs,ntimes),stat=astat )
+       if( astat /= 0 ) then
+          write(iulog,*) 'photo_inti: coldens allocation error = ',astat
+          call endrun
+       end if
+
+       if( has_o3_col ) then
+          allocate( o3_exo_colDU(pcols,begchunk:endchunk,ntimes),stat=astat )
+          if( astat /= 0 ) then
+             write(iulog,*) 'photo_inti: o3_exo_colDU allocation error = ',astat
+             call endrun
+          end if
+          ierr = pio_inq_varid( ncid, 'O3_column_density', vid )
+          ierr = pio_get_var( ncid, vid,coldens )
+
+          do c=begchunk,endchunk
+             ncols = get_ncols_p(c)
+             call get_rlat_all_p(c, pcols, to_lats)
+             call lininterp_init(lats, nlat, to_lats, ncols, 1, lat_wgts)
+             do n=1,ntimes
+                ! Just interpolate overhead ozone column, obtained by taking the
+                ! surface layer of coldens
+                call lininterp(coldens(:,n_exo_levs,n), nlat, o3_exo_colDU(:,c,n), ncols, lat_wgts)
+             end do
+             call lininterp_finish(lat_wgts)
+          enddo
+       end if
+       call pio_closefile (ncid)
+       deallocate( coldens,stat=astat )
+       if( astat /= 0 ) then
+          write(iulog,*) 'photo_inti: failed to deallocate coldens; error = ',astat
+          call endrun
+       end if
+    ENDIF
+
     ! Get indices for physical fields in physics buffer
     NDX_PBLH     = pbuf_get_index('pblh'     )
     NDX_FSDS     = pbuf_get_index('FSDS'     )
@@ -2290,6 +2426,47 @@ contains
     Calday = Get_Curr_Calday( )
     CALL Zenith( Calday, Rlats, Rlons, CSZA, nY )
 
+    ! Determine current date and time
+    CALL Get_Curr_Date( yr  = currYr,  &
+                        mon = currMo,  &
+                        day = currDy,  &
+                        tod = currTOD )
+
+    ! For now, force year to be 2000
+    currYr  = 2000
+    currYMD = (currYr*1000) + (currMo*100) + (currDy)
+    ! Deal with subdaily
+    currUTC = REAL(currTOD,f4)/3600.0e+0_f4
+    currSc  = 0
+    currMn  = 0
+    currHr  = 0
+    DO WHILE (currTOD >= 3600)
+       currTOD = currTOD - 3600
+       currHr  = currHr + 1
+    ENDDO
+    DO WHILE (currTOD >= 60)
+       currTOD = currTOD - 60
+       currMn  = currMn + 1
+    ENDDO
+    currSc  = currTOD
+    currHMS = (currHr*1000) + (currMn*100) + (currSc)
+
+    IF ( firstDay ) THEN
+       newDay   = .True.
+       newMonth = .True.
+       firstDay = .False.
+    ELSE IF ( currHMS < dT ) THEN
+       newDay = .True.
+       IF ( currDy == 1 ) THEN
+          newMonth = .True.
+       ELSE
+          newMonth = .False.
+       ENDIF
+    ELSE
+       newDay   = .False.
+       newMonth = .False.
+    ENDIF
+
     ! Get all required data from physics buffer
     TIM_NDX = pbuf_old_tim_idx()
     CALL pbuf_get_field( pbuf, NDX_PBLH,     PblH   )
@@ -2601,7 +2778,8 @@ contains
     ! Description: Total overhead ozone column
     ! Unit       : DU
     ! Dimensions : nX, nY
-    State_Met(LCHNK)%TO3       (1,:) = 300.0e+0_fp ! TMMF
+    !State_Met(LCHNK)%TO3       (1,:) = 300.0e+0_fp ! TMMF
+    State_Met(LCHNK)%TO3       (1,:) = o3_exo_colDU(:,LCHNK,currMo)
 
     ! Field      : SNODP, SNOMAS
     ! Description: Snow depth, snow mass
@@ -2859,47 +3037,6 @@ contains
     ! Unit       : -
     ! Dimensions : nX, nY, nZ
     State_Met(LCHNK)%OPTD =  State_Met(LCHNK)%TAUCLI + State_Met(LCHNK)%TAUCLW
-
-    ! Determine current date and time
-    CALL Get_Curr_Date( yr  = currYr,  &
-                        mon = currMo,  &
-                        day = currDy,  &
-                        tod = currTOD )
-
-    ! For now, force year to be 2000
-    currYr  = 2000
-    currYMD = (currYr*1000) + (currMo*100) + (currDy)
-    ! Deal with subdaily
-    currUTC = REAL(currTOD,f4)/3600.0e+0_f4
-    currSc  = 0
-    currMn  = 0
-    currHr  = 0
-    DO WHILE (currTOD >= 3600)
-       currTOD = currTOD - 3600
-       currHr  = currHr + 1
-    ENDDO
-    DO WHILE (currTOD >= 60)
-       currTOD = currTOD - 60
-       currMn  = currMn + 1
-    ENDDO
-    currSc  = currTOD
-    currHMS = (currHr*1000) + (currMn*100) + (currSc)
-
-    IF ( firstDay ) THEN
-       newDay   = .True.
-       newMonth = .True.
-       firstDay = .False.
-    ELSE IF ( currHMS < dT ) THEN
-       newDay = .True.
-       IF ( currDy == 1 ) THEN
-          newMonth = .True.
-       ELSE
-          newMonth = .False.
-       ENDIF
-    ELSE
-       newDay   = .False.
-       newMonth = .False.
-    ENDIF
 
     ! Pass time values obtained from the ESMF environment to GEOS-Chem
     CALL Accept_External_Date_Time( value_NYMD     = currYMD,            &
