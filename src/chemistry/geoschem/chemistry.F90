@@ -4268,7 +4268,7 @@ contains
     CALL Cleanup_Pressure
     CALL Cleanup_Seasalt
     CALL Cleanup_Sulfate
-    CALL Cleanup_Strat_Chem
+    CALL Cleanup_Linear_Chem
 
     CALL CESMGC_Emissions_Final
 
