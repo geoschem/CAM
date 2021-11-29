@@ -18,5 +18,3 @@ tccon_ch4_mod.F90
 initialize.F90
 cleanup.F90
 main.F90
-hcoio_read_mapl_mod.F90
-hcoio_write_mapl_mod.F90
