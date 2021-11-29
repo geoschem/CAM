@@ -1859,12 +1859,12 @@ contains
     use PBL_Mix_Mod,         only : Compute_PBL_Height
     use UCX_Mod,             only : Set_H2O_Trac
     use CMN_FJX_MOD,         only : ZPJ
-    use FAST_JX_MOD,         only : RXN_NO2, RXN_O3_1, RXN_O3_2a
+    use FAST_JX_MOD,         only : RXN_NO2, RXN_O3_1
     use State_Diag_Mod,      only : get_TagInfo
     use Unitconv_Mod,        only : Convert_Spc_Units
     use State_Chm_Mod,       only : Ind_
 
-    use Linear_Chem_Mod,     only : Strat_TrID_GC => TrID_GC, GC_Bry_TrID => TrID, NSCHEM
+    use Linear_Chem_Mod,     only : Strat_TrID_GC => TrID_GC, GC_Bry_TrID, NSCHEM
     use Linear_Chem_Mod,     only : BrPtrDay, BrPtrNight, PLVEC, STRAT_OH => GMI_OH
 
     use CESMGC_Emissions_Mod,only : CESMGC_Emissions_Calc
@@ -4234,7 +4234,6 @@ contains
     use State_Met_Mod,  only : Cleanup_State_Met
     use Error_Mod,      only : Cleanup_Error
 
-    use FlexChem_Mod,   only : Cleanup_FlexChem
     use UCX_Mod,        only : Cleanup_UCX
     use Drydep_Mod,     only : Cleanup_Drydep
     use Carbon_Mod,     only : Cleanup_Carbon
@@ -4265,11 +4264,6 @@ contains
     CALL Cleanup_Carbon
     CALL Cleanup_Drydep
     CALL Cleanup_Dust
-    CALL Cleanup_FlexChem( RC )
-    IF ( RC /= GC_SUCCESS ) THEN
-       ErrMsg = 'Error encountered in "Cleanup_FlexChem"!'
-       CALL Error_Stop( ErrMsg, ThisLoc )
-    ENDIF
 
     CALL Cleanup_Pressure
     CALL Cleanup_Seasalt
