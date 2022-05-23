@@ -81,7 +81,7 @@ subroutine neu_wetdep_init
   do m=1,gas_wetdep_cnt
 !
     test_name = gas_wetdep_list(m)
-    if ( debug ) print '(i4,a)',m,trim(test_name)
+    if ( debug ) print '(a,i4,a,a)','getting mapping for gas wetdep species ',m,': ',trim(test_name)
 !
 ! mapping based on the MOZART4 wet removal subroutine;
 ! this might need to be redone (JFL: Sep 2010)
@@ -160,17 +160,23 @@ subroutine neu_wetdep_init
 !
     do l = 1,n_species_table
 !
-!      if ( debug ) print '(i4,a)',l,trim(species_name_table(l))
+!      if ( debug ) print '(i4,a,a)',l,' ',trim(species_name_table(l))
 !
        if( trim(test_name) == trim( species_name_table(l) ) ) then
           mapping_to_heff(m)  = l
           if ( debug ) print '(a,a,i4)','mapping to heff of ',trim(species_name_table(l)),l
           exit
        end if
+
     end do
     if ( mapping_to_heff(m) == -99 ) then
+          if ( debug ) print '(a,a,a,a,a)','ERROR: gas wetdep species (test_name) not found in species table: ',trim(gas_wetdep_list(m)),' ( ',trim(test_name),' ) '
       if (masterproc) print *,'problem with mapping_to_heff of ',trim(test_name)
 !      call endrun()
+
+       ! ewl debugging: kludge until I can add the new species to species table in seq_drydep_mod.F90
+       mapping_to_heff(m) = 1
+       ! ewl debugging: end kludge
     end if
 !
 ! special cases for NH3 and CO2
