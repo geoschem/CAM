@@ -153,7 +153,6 @@ module chemistry
   INTEGER                    :: ixNDrop   ! Cloud droplet number index
 
   ! ghg
-
   LOGICAL                    :: ghg_chem = .false.  ! .true. => use ghg chem package
   CHARACTER(len=shr_kind_cl) :: bndtvg = ' '   ! pathname for greenhouse gas loss rate
   CHARACTER(len=shr_kind_cl) :: h2orates = ' ' ! pathname for greenhouse gas (lyman-alpha H2O loss)
@@ -165,11 +164,12 @@ module chemistry
   CHARACTER(LEN=255)         :: ThisLoc
   CHARACTER(LEN=255)         :: ErrMsg
 
-  ! Filenames to compute dry deposition velocities similarly to MOZART
-  character(len=shr_kind_cl) :: clim_soilw_file = 'clim_soilw_file'
-  character(len=shr_kind_cl) :: depvel_file     = ''
-  character(len=shr_kind_cl) :: depvel_lnd_file = 'depvel_lnd_file'
-  character(len=shr_kind_cl) :: season_wes_file = 'season_wes_file'
+!ewl1: comment out defining files used only for dry deposition
+!ewl1  ! Filenames to compute dry deposition velocities similarly to MOZART
+!ewl1  character(len=shr_kind_cl) :: clim_soilw_file = 'clim_soilw_file'
+!ewl1  character(len=shr_kind_cl) :: depvel_file     = ''
+!ewl1  character(len=shr_kind_cl) :: depvel_lnd_file = 'depvel_lnd_file'
+!ewl1  character(len=shr_kind_cl) :: season_wes_file = 'season_wes_file'
 
   character(len=shr_kind_cl) :: srf_emis_specifier(pcnst) = ''
   character(len=shr_kind_cl) :: ext_frc_specifier(pcnst) = ''
@@ -689,18 +689,16 @@ contains
     LOGICAL                      :: menuFound
     LOGICAL                      :: validSLS
 
+!ewl2: Remove 4 entries from chem_inparm. If the others are still needed, update comment.
+!ewl2: clim_soilw_file, depvel_file, lght_no_prd_factor, depvel_lnd_file
     ! The following files are required to compute land maps, required to perform
     ! aerosol dry deposition
-    namelist /chem_inparm/ clim_soilw_file,    &
-                           depvel_file,        &
-                           lght_no_prd_factor, &
-                           depvel_lnd_file,    &
+    namelist /chem_inparm/ lght_no_prd_factor, &!
                            ext_frc_specifier,  &
                            ext_frc_type,       &
                            ext_frc_cycle_yr,   &
                            ext_frc_fixed_ymd,  &
                            ext_frc_fixed_tod,  &
-                           season_wes_file,    &
                            srf_emis_specifier, &
                            srf_emis_cycle_yr,  &
                            srf_emis_fixed_ymd, &
@@ -870,14 +868,15 @@ contains
 
     ! Broadcast namelist variables
 
-    ! The following files are required to compute land maps, required to perform
-    ! aerosol dry deposition
-    CALL MPIBCAST (depvel_lnd_file, LEN(depvel_lnd_file), MPICHAR, 0, MPICOM)
-    CALL MPIBCAST (clim_soilw_file, LEN(clim_soilw_file), MPICHAR, 0, MPICOM)
-    CALL MPIBCAST (season_wes_file, LEN(season_wes_file), MPICHAR, 0, MPICOM)
+!ewl3: Remove broadcas4 of 4 files used for dry deposition only
+!ewl3    ! The following files are required to compute land maps, required to perform
+!ewl3    ! aerosol dry deposition
+!ewl3    CALL MPIBCAST (depvel_lnd_file, LEN(depvel_lnd_file), MPICHAR, 0, MPICOM)
+!ewl3    CALL MPIBCAST (clim_soilw_file, LEN(clim_soilw_file), MPICHAR, 0, MPICOM)
+!ewl3    CALL MPIBCAST (season_wes_file, LEN(season_wes_file), MPICHAR, 0, MPICOM)
 
     CALL MPIBCAST (lght_no_prd_factor, 1,                                MPIR8,   0, MPICOM)
-    CALL MPIBCAST (depvel_file,        LEN(depvel_file),                 MPICHAR, 0, MPICOM)
+!ewl3    CALL MPIBCAST (depvel_file,        LEN(depvel_file),                 MPICHAR, 0, MPICOM)
     CALL MPIBCAST (srf_emis_specifier, LEN(srf_emis_specifier(1))*pcnst, MPICHAR, 0, MPICOM)
     CALL MPIBCAST (srf_emis_type,      LEN(srf_emis_type),               MPICHAR, 0, MPICOM)
     CALL MPIBCAST (srf_emis_cycle_yr,  1,                                MPIINT,  0, MPICOM)
@@ -1167,13 +1166,17 @@ contains
        !                 -> False (read monthly-mean albedo from HEMCO)
        Input_Opt%onlineAlbedo           = .False.
 
+!ewl4: Change using online land types from true to false, and using GEOS-Chem
+!ewl4: dry dep velocities from false to true (use CLM dry dep velocities instead)
        ! onlineLandTypes -> True  (use CLM landtypes)
        !                 -> False (read landtypes from HEMCO)
-       Input_Opt%onlineLandTypes        = .True.
+!ewl4       Input_Opt%onlineLandTypes        = .True.
+       Input_Opt%onlineLandTypes        = .False. ! ewl4
 
        ! ddVel_CLM       -> True  (use CLM dry deposition velocities)
        !                 -> False (let GEOS-Chem compute dry deposition velocities)
-       Input_Opt%ddVel_CLM              = .False.
+!ewl4       Input_Opt%ddVel_CLM              = .False.
+       Input_Opt%ddVel_CLM              = .True.  ! ewl4
 
        ! applyQtend: apply tendencies of water vapor to specific humidity
        Input_Opt%applyQtend             = .False.
@@ -1447,48 +1450,51 @@ contains
         CALL Error_Stop( ErrMsg, ThisLoc )
     ENDIF
 
-    IF ( Input_Opt%LDryD ) THEN
-       !==============================================================
-       ! Get mapping between CESM dry deposited species and the
-       ! indices of State_Chm%DryDepVel. This needs to be done after
-       ! Init_Drydep
-       ! Thibaud M. Fritz - 04 Mar 2020
-       !==============================================================
-
-       ALLOCATE(map2GC_dryDep(nddvels), STAT=IERR)
-       IF ( IERR .NE. 0 ) CALL ENDRUN('Failed to allocate map2GC_dryDep')
-
-       DO N = 1, nddvels
-          ! Initialize index to -1
-          map2GC_dryDep(N) = -1
-
-          IF ( drySpc_ndx(N) > 0 ) THEN
-
-             ! Convert to upper case
-             SpcName = to_upper(drydep_list(N))
-
-             DO I = 1, State_Chm(BEGCHUNK)%nDryDep
-                IF ( TRIM( SpcName ) == TRIM( to_upper(depName(I)) ) ) THEN
-                    map2GC_dryDep(N) = nDVZind(I)
-                   EXIT
-                ENDIF
-             ENDDO
-
-             ! Print out debug information
-             IF ( masterProc ) THEN
-                IF ( N == 1 ) Write(iulog,*) " ++ GEOS-Chem Dry deposition ++ "
-                IF ( map2GC_dryDep(N) > 0 ) THEN
-                    Write(iulog,*) " CESM species: ", TRIM(drydep_list(N)), &
-                      ' is matched with ', depName(map2GC_dryDep(N))
-                ELSE
-                    Write(iulog,*) " CESM species: ", TRIM(drydep_list(N)), &
-                      ' has no match'
-                ENDIF
-             ENDIF
-
-          ENDIF
-       ENDDO
-    ENDIF
+!ewl5: comment out getting mapping between CESM dry dep species and
+!ewl5: GEOS-Chem dry dep species. ***This should be able to be accomplished
+!ewl5: by turning off drydep in input.geos as well***
+!ewl5    IF ( Input_Opt%LDryD ) THEN
+!ewl5       !==============================================================
+!ewl5       ! Get mapping between CESM dry deposited species and the
+!ewl5       ! indices of State_Chm%DryDepVel. This needs to be done after
+!ewl5       ! Init_Drydep
+!ewl5       ! Thibaud M. Fritz - 04 Mar 2020
+!ewl5       !==============================================================
+!ewl5
+!ewl5       ALLOCATE(map2GC_dryDep(nddvels), STAT=IERR)
+!ewl5       IF ( IERR .NE. 0 ) CALL ENDRUN('Failed to allocate map2GC_dryDep')
+!ewl5
+!ewl5       DO N = 1, nddvels
+!ewl5          ! Initialize index to -1
+!ewl5          map2GC_dryDep(N) = -1
+!ewl5
+!ewl5          IF ( drySpc_ndx(N) > 0 ) THEN
+!ewl5
+!ewl5             ! Convert to upper case
+!ewl5             SpcName = to_upper(drydep_list(N))
+!ewl5
+!ewl5             DO I = 1, State_Chm(BEGCHUNK)%nDryDep
+!ewl5                IF ( TRIM( SpcName ) == TRIM( to_upper(depName(I)) ) ) THEN
+!ewl5                    map2GC_dryDep(N) = nDVZind(I)
+!ewl5                   EXIT
+!ewl5                ENDIF
+!ewl5             ENDDO
+!ewl5
+!ewl5             ! Print out debug information
+!ewl5             IF ( masterProc ) THEN
+!ewl5                IF ( N == 1 ) Write(iulog,*) " ++ GEOS-Chem Dry deposition ++ "
+!ewl5                IF ( map2GC_dryDep(N) > 0 ) THEN
+!ewl5                    Write(iulog,*) " CESM species: ", TRIM(drydep_list(N)), &
+!ewl5                      ' is matched with ', depName(map2GC_dryDep(N))
+!ewl5                ELSE
+!ewl5                    Write(iulog,*) " CESM species: ", TRIM(drydep_list(N)), &
+!ewl5                      ' has no match'
+!ewl5                ENDIF
+!ewl5             ENDIF
+!ewl5
+!ewl5          ENDIF
+!ewl5       ENDDO
+!ewl5    ENDIF
 
 #if defined( MODAL_AERO )
     ! Initialize aqueous chem
@@ -1497,16 +1503,17 @@ contains
     ! Initialize aerosols
     CALL aero_model_init( pbuf2d )
 
-    ! Initialize land maps for aerosol dry deposition
-    IF ( drydep_method == DD_XATM .OR. drydep_method == DD_XLND ) THEN
-       CALL drydep_inti( depvel_lnd_file, &
-                         clim_soilw_file, &
-                         season_wes_file )
-    ELSE
-       IF ( masterProc ) Write(iulog,'(a,a)') ' drydep_method is set to: ', TRIM(drydep_method)
-       CALL ENDRUN('drydep_method must be DD_XLND or DD_XATM to compute land '// &
-               'maps for aerosol dry deposition!')
-    ENDIF
+!ewl6: comment out initializing land maps for aerosol dry dep. drydep_method is
+!ewl6: taken from seq_drydep_mod. Comment elsewhere in this file specifies it must
+!ewl6: be DD_XLND. Is this true???
+!ewl6    ! Initialize land maps for aerosol dry deposition
+!ewl6    IF ( drydep_method == DD_XATM .OR. drydep_method == DD_XLND ) THEN
+!ewl6       CALL drydep_inti( depvel_lnd_file )
+!ewl6    ELSE
+!ewl6       IF ( masterProc ) Write(iulog,'(a,a)') ' drydep_method is set to: ', TRIM(drydep_method)
+!ewl6       CALL ENDRUN('drydep_method must be DD_XLND or DD_XATM to compute land '// &
+!ewl6               'maps for aerosol dry deposition!')
+!ewl6    ENDIF
 #endif
 
     IF ( gas_wetdep_method == 'NEU' ) THEN
@@ -2627,73 +2634,76 @@ contains
     State_Met(LCHNK)%EFLUX     (1,:nY) = cam_in%Lhf(:nY)
     State_Met(LCHNK)%HFLUX     (1,:nY) = cam_in%Shf(:nY)
 
-    ! Field      : LandTypeFrac
-    ! Description: Olson fraction per type
-    ! Unit       : - (between 0 and 1)
-    ! Dimensions : nX, nY, NSURFTYPE
-    ! Note       : Index 1 is water
-    IF ( Input_Opt%onlineLandTypes ) THEN
-       ! Fill in water
-       State_Met(LCHNK)%LandTypeFrac(1,:nY,1) = cam_in%ocnFrac(:nY)     &
-                                              + cam_in%iceFrac(:nY)
-       IF ( .NOT. Input_Opt%ddVel_CLM ) THEN
-          CALL getLandTypes( cam_in,         &
-                             nY,             &
-                             State_Met(LCHNK) )
-       ENDIF
-    ELSE
-       DO N = 1, NSURFTYPE
-          Write(FieldName, '(a,i2.2)') 'HCO_LANDTYPE', N-1
-          tmpIdx = pbuf_get_index(FieldName, rc)
-          IF ( tmpIdx < 0 .or. ( iStep == 1 ) ) THEN
-             IF ( rootChunk ) Write(iulog,*) "chem_timestep_tend: Field not found ", TRIM(FieldName)
-          ELSE
-             CALL pbuf_get_field(pbuf, tmpIdx, pbuf_i)
-             DO J = 1, nY
-                State_Met(LCHNK)%LandTypeFrac(1,J,N) = pbuf_i(J)
-             ENDDO
-             pbuf_i   => NULL()
-          ENDIF
+!ewl7: Comment out setting State_Met fields LandTypeFrac and XLAI_NAITVE.
+!ewl7: Note that onlineLandTypes is now false due to another edit I made.
+!ewl7    ! Field      : LandTypeFrac
+!ewl7    ! Description: Olson fraction per type
+!ewl7    ! Unit       : - (between 0 and 1)
+!ewl7    ! Dimensions : nX, nY, NSURFTYPE
+!ewl7    ! Note       : Index 1 is water
+!ewl7    IF ( Input_Opt%onlineLandTypes ) THEN
+!ewl7       ! Fill in water
+!ewl7       State_Met(LCHNK)%LandTypeFrac(1,:nY,1) = cam_in%ocnFrac(:nY)     &
+!ewl7                                              + cam_in%iceFrac(:nY)
+!ewl7       IF ( .NOT. Input_Opt%ddVel_CLM ) THEN
+!ewl7          CALL getLandTypes( cam_in,         &
+!ewl7                             nY,             &
+!ewl7                             State_Met(LCHNK) )
+!ewl7       ENDIF
+!ewl7    ELSE
+!ewl7       DO N = 1, NSURFTYPE
+!ewl7          Write(FieldName, '(a,i2.2)') 'HCO_LANDTYPE', N-1
+!ewl7          tmpIdx = pbuf_get_index(FieldName, rc)
+!ewl7          IF ( tmpIdx < 0 .or. ( iStep == 1 ) ) THEN
+!ewl7             IF ( rootChunk ) Write(iulog,*) "chem_timestep_tend: Field not found ", TRIM(FieldName)
+!ewl7          ELSE
+!ewl7             CALL pbuf_get_field(pbuf, tmpIdx, pbuf_i)
+!ewl7             DO J = 1, nY
+!ewl7                State_Met(LCHNK)%LandTypeFrac(1,J,N) = pbuf_i(J)
+!ewl7             ENDDO
+!ewl7             pbuf_i   => NULL()
+!ewl7          ENDIF
+!ewl7
+!ewl7          Write(FieldName, '(a,i2.2)') 'HCO_XLAI', N-1
+!ewl7          tmpIdx = pbuf_get_index(FieldName, rc)
+!ewl7          IF ( tmpIdx < 0 .or. ( iStep == 1 ) ) THEN
+!ewl7             IF ( rootChunk ) Write(iulog,*) "chem_timestep_tend: Field not found ", TRIM(FieldName)
+!ewl7          ELSE
+!ewl7             CALL pbuf_get_field(pbuf, tmpIdx, pbuf_i)
+!ewl7             DO J = 1, nY
+!ewl7                State_Met(LCHNK)%XLAI_NATIVE(1,J,N) = pbuf_i(J)
+!ewl7             ENDDO
+!ewl7             pbuf_i   => NULL()
+!ewl7          ENDIF
+!ewl7       ENDDO
+!ewl7    ENDIF
 
-          Write(FieldName, '(a,i2.2)') 'HCO_XLAI', N-1
-          tmpIdx = pbuf_get_index(FieldName, rc)
-          IF ( tmpIdx < 0 .or. ( iStep == 1 ) ) THEN
-             IF ( rootChunk ) Write(iulog,*) "chem_timestep_tend: Field not found ", TRIM(FieldName)
-          ELSE
-             CALL pbuf_get_field(pbuf, tmpIdx, pbuf_i)
-             DO J = 1, nY
-                State_Met(LCHNK)%XLAI_NATIVE(1,J,N) = pbuf_i(J)
-             ENDDO
-             pbuf_i   => NULL()
-          ENDIF
-       ENDDO
-    ENDIF
-
-    ! Field      : FRCLND, FRLAND, FROCEAN, FRSEAICE, FRLAKE, FRLANDIC
-    ! Description: Olson land fraction
-    !              Fraction of land
-    !              Fraction of ocean
-    !              Fraction of sea ice
-    !              Fraction of lake
-    !              Fraction of land ice
-    !              Fraction of snow
-    ! Unit       : -
-    ! Dimensions : nX, nY
-    State_Met(LCHNK)%FRCLND    (1,:ny) = 1.e+0_fp - &
-                    State_Met(LCHNK)%LandTypeFrac(1,:nY,1) ! Olson Land Fraction
-    State_Met(LCHNK)%FRLAND    (1,:nY) = cam_in%landFrac(:nY)
-    State_Met(LCHNK)%FROCEAN   (1,:nY) = cam_in%ocnFrac(:nY) + cam_in%iceFrac(:nY)
-    State_Met(LCHNK)%FRSEAICE  (1,:nY) = cam_in%iceFrac(:nY)
-    IF ( Input_Opt%onlineLandTypes ) THEN
-       State_Met(LCHNK)%FRLAKE    (1,:nY) = cam_in%lwtgcell(:,3) + &
-                                          cam_in%lwtgcell(:,4)
-       State_Met(LCHNK)%FRLANDIC  (1,:nY) = cam_in%lwtgcell(:,2)
-       State_Met(LCHNK)%FRSNO     (1,:nY) = 0.0e+0_fp
-    ELSE
-       State_Met(LCHNK)%FRLAKE    (1,:nY) = 0.0e+0_fp
-       State_Met(LCHNK)%FRLANDIC  (1,:nY) = 0.0e+0_fp
-       State_Met(LCHNK)%FRSNO     (1,:nY) = 0.0e+0_fp
-    ENDIF
+!ewl8: Comment out setting State_Met fields FR* for CLND, LAND, OCEAN, SEAICE, LAKE, and LANDIC
+!ewl8    ! Field      : FRCLND, FRLAND, FROCEAN, FRSEAICE, FRLAKE, FRLANDIC
+!ewl8    ! Description: Olson land fraction
+!ewl8    !              Fraction of land
+!ewl8    !              Fraction of ocean
+!ewl8    !              Fraction of sea ice
+!ewl8    !              Fraction of lake
+!ewl8    !              Fraction of land ice
+!ewl8    !              Fraction of snow
+!ewl8    ! Unit       : -
+!ewl8    ! Dimensions : nX, nY
+!ewl8    State_Met(LCHNK)%FRCLND    (1,:ny) = 1.e+0_fp - &
+!ewl8                    State_Met(LCHNK)%LandTypeFrac(1,:nY,1) ! Olson Land Fraction
+!ewl8    State_Met(LCHNK)%FRLAND    (1,:nY) = cam_in%landFrac(:nY)
+!ewl8    State_Met(LCHNK)%FROCEAN   (1,:nY) = cam_in%ocnFrac(:nY) + cam_in%iceFrac(:nY)
+!ewl8    State_Met(LCHNK)%FRSEAICE  (1,:nY) = cam_in%iceFrac(:nY)
+!ewl8    IF ( Input_Opt%onlineLandTypes ) THEN
+!ewl8       State_Met(LCHNK)%FRLAKE    (1,:nY) = cam_in%lwtgcell(:,3) + & !ewl: this import removed
+!ewl8                                          cam_in%lwtgcell(:,4)       !ewl: this import removed
+!ewl8       State_Met(LCHNK)%FRLANDIC  (1,:nY) = cam_in%lwtgcell(:,2)     !ewl: this import removed
+!ewl8       State_Met(LCHNK)%FRSNO     (1,:nY) = 0.0e+0_fp
+!ewl8    ELSE
+!ewl8       State_Met(LCHNK)%FRLAKE    (1,:nY) = 0.0e+0_fp
+!ewl8       State_Met(LCHNK)%FRLANDIC  (1,:nY) = 0.0e+0_fp
+!ewl8       State_Met(LCHNK)%FRSNO     (1,:nY) = 0.0e+0_fp
+!ewl8    ENDIF
 
     ! Field      : GWETROOT, GWETTOP
     ! Description: Root and top soil moisture
@@ -3501,103 +3511,105 @@ contains
     ! Thibaud M. Fritz - 27 Feb 2020
     !==================================================================
 
-    IF ( Input_Opt%LDryD ) THEN
-       ! Compute the Olson landmap fields of State_Met
-       ! (e.g. State_Met%IREG, State_Met%ILAND, etc.)
-       CALL Compute_Olson_Landmap( Input_Opt  = Input_Opt,         &
-                                   State_Grid = State_Grid(LCHNK), &
-                                   State_Met  = State_Met(LCHNK),  &
-                                   RC         = RC                )
-
-       ! Trap potential errors
-       IF ( RC /= GC_SUCCESS ) THEN
-          ErrMsg = 'Error encountered in "Compute_Olson_Landmap"!'
-          CALL Error_Stop( ErrMsg, ThisLoc )
-       ENDIF
-
-       ! Compute State_Met%XLAI (for drydep) and State_Met%MODISLAI,
-       ! which is the average LAI per grid box (for soil NOx emissions)
-       CALL Compute_Xlai( Input_Opt  = Input_Opt,         &
-                          State_Grid = State_Grid(LCHNK), &
-                          State_Met  = State_Met(LCHNK),  &
-                          RC         = RC                )
-
-       ! Trap potential errors
-       IF ( RC /= GC_SUCCESS ) THEN
-          ErrMsg = 'Error encountered in "Compute_Xlai"!'
-          CALL Error_Stop( ErrMsg, ThisLoc )
-       ENDIF
-
-       ! Compute drydep velocities and update State_Chm%DryDepVel
-       CALL Do_Drydep( Input_Opt  = Input_Opt,         &
-                       State_Chm  = State_Chm(LCHNK),  &
-                       State_Diag = State_Diag(LCHNK), &
-                       State_Grid = State_Grid(LCHNK), &
-                       State_Met  = State_Met(LCHNK),  &
-                       RC         = RC                )
-
-       ! Trap potential errors
-       IF ( RC /= GC_SUCCESS ) THEN
-          ErrMsg = 'Error encountered in "Do_Drydep"!'
-          CALL Error_Stop( ErrMsg, ThisLoc )
-       ENDIF
-
-       IF ( Input_Opt%ddVel_CLM ) THEN
-          DO N = 1, nddvels
-
-             !! Print debug
-             !IF ( rootChunk ) THEN
-             !    IF ( N == 1 ) THEN
-             !    Write(iulog,*) "Number of GC dry deposition species = ", &
-             !        SIZE(State_Chm(LCHNK)%DryDepVel(:,:,:),3)
-             !    Write(iulog,*) "Number of CESM dry deposition species = ", &
-             !        nddvels
-             !    ENDIF
-             !    Write(iulog,*) "N          = ", N
-             !    Write(iulog,*) "drySpc_ndx = ", drySpc_ndx(N)
-             !    Write(iulog,*) "GC index   = ", map2GC_dryDep(N)
-             !    IF ( map2GC_dryDep(N) > 0 ) THEN
-             !        Write(iulog,*) "GC name    = ", TRIM(DEPNAME(map2GC_dryDep(N)))
-             !    ENDIF
-             !    Write(iulog,*) "dry Species= ", TRIM(drydep_list(N))
-             !    IF ( drySpc_ndx(N) > 0 ) THEN
-             !        Write(iulog,*) "tracerName = ", TRIM(tracerNames(drySpc_ndx(N)))
-             !    ENDIF
-             !    Write(iulog,*) "CLM-depVel = ", &
-             !  MAXVAL(cam_in%depvel(:nY,N)) * 1.0e-02_fp, " [m/s]"
-             !    IF ( map2GC_dryDep(N) > 0 ) THEN
-             !        Write(iulog,*) "GC-depVel  = ", &
-             !  MAXVAL(State_Chm(LCHNK)%DryDepVel(1,:nY,map2GC_dryDep(N))), " [m/s]"
-             !    ENDIF
-             !ENDIF
-
-             IF ( map2GC_dryDep(N) > 0 ) THEN
-                ! State_Chm%DryDepVel is in m/s
-                State_Chm(LCHNK)%DryDepVel(1,:nY,map2GC_dryDep(N)) = &
-                   ! This first bit corresponds to the dry deposition
-                   ! velocities over land as computed from CLM and
-                   ! converted to m/s. This is scaled by the fraction
-                   ! of land.
-                     cam_in%depVel(:nY,N) * 1.0e-02_fp &
-                      * MAX(0._fp, 1.0_fp - State_Met(LCHNK)%FROCEAN(1,:nY)) &
-                   ! This second bit corresponds to the dry deposition
-                   ! velocities over ocean and sea ice as computed from
-                   ! GEOS-Chem. This is scaled by the fraction of ocean
-                   ! and sea ice.
-                   + State_Chm(LCHNK)%DryDepVel(1,:nY,map2GC_dryDep(N)) &
-                     * State_Met(LCHNK)%FROCEAN(1,:nY)
-             ENDIF
-          ENDDO
-       ENDIF
-
-       CALL Update_DryDepFreq( Input_Opt  = Input_Opt,         &
-                               State_Chm  = State_Chm(LCHNK),  &
-                               State_Diag = State_Diag(LCHNK), &
-                               State_Grid = State_Grid(LCHNK), &
-                               State_Met  = State_Met(LCHNK),  &
-                               RC         = RC                )
-
-    ENDIF
+!ewl9: Comment execution of dry depostion.
+!ewl9: ***This should also be able to be accomplished by turning off drydep in input.geos***
+!ewl9    IF ( Input_Opt%LDryD ) THEN
+!ewl9       ! Compute the Olson landmap fields of State_Met
+!ewl9       ! (e.g. State_Met%IREG, State_Met%ILAND, etc.)
+!ewl9       CALL Compute_Olson_Landmap( Input_Opt  = Input_Opt,         &
+!ewl9                                   State_Grid = State_Grid(LCHNK), &
+!ewl9                                   State_Met  = State_Met(LCHNK),  &
+!ewl9                                   RC         = RC                )
+!ewl9
+!ewl9       ! Trap potential errors
+!ewl9       IF ( RC /= GC_SUCCESS ) THEN
+!ewl9          ErrMsg = 'Error encountered in "Compute_Olson_Landmap"!'
+!ewl9          CALL Error_Stop( ErrMsg, ThisLoc )
+!ewl9       ENDIF
+!ewl9
+!ewl9       ! Compute State_Met%XLAI (for drydep) and State_Met%MODISLAI,
+!ewl9       ! which is the average LAI per grid box (for soil NOx emissions)
+!ewl9       CALL Compute_Xlai( Input_Opt  = Input_Opt,         &
+!ewl9                          State_Grid = State_Grid(LCHNK), &
+!ewl9                          State_Met  = State_Met(LCHNK),  &
+!ewl9                          RC         = RC                )
+!ewl9
+!ewl9       ! Trap potential errors
+!ewl9       IF ( RC /= GC_SUCCESS ) THEN
+!ewl9          ErrMsg = 'Error encountered in "Compute_Xlai"!'
+!ewl9          CALL Error_Stop( ErrMsg, ThisLoc )
+!ewl9       ENDIF
+!ewl9
+!ewl9       ! Compute drydep velocities and update State_Chm%DryDepVel
+!ewl9       CALL Do_Drydep( Input_Opt  = Input_Opt,         &
+!ewl9                       State_Chm  = State_Chm(LCHNK),  &
+!ewl9                       State_Diag = State_Diag(LCHNK), &
+!ewl9                       State_Grid = State_Grid(LCHNK), &
+!ewl9                       State_Met  = State_Met(LCHNK),  &
+!ewl9                       RC         = RC                )
+!ewl9
+!ewl9       ! Trap potential errors
+!ewl9       IF ( RC /= GC_SUCCESS ) THEN
+!ewl9          ErrMsg = 'Error encountered in "Do_Drydep"!'
+!ewl9          CALL Error_Stop( ErrMsg, ThisLoc )
+!ewl9       ENDIF
+!ewl9
+!ewl9       IF ( Input_Opt%ddVel_CLM ) THEN
+!ewl9          DO N = 1, nddvels
+!ewl9
+!ewl9             !! Print debug
+!ewl9             !IF ( rootChunk ) THEN
+!ewl9             !    IF ( N == 1 ) THEN
+!ewl9             !    Write(iulog,*) "Number of GC dry deposition species = ", &
+!ewl9             !        SIZE(State_Chm(LCHNK)%DryDepVel(:,:,:),3)
+!ewl9             !    Write(iulog,*) "Number of CESM dry deposition species = ", &
+!ewl9             !        nddvels
+!ewl9             !    ENDIF
+!ewl9             !    Write(iulog,*) "N          = ", N
+!ewl9             !    Write(iulog,*) "drySpc_ndx = ", drySpc_ndx(N)
+!ewl9             !    Write(iulog,*) "GC index   = ", map2GC_dryDep(N)
+!ewl9             !    IF ( map2GC_dryDep(N) > 0 ) THEN
+!ewl9             !        Write(iulog,*) "GC name    = ", TRIM(DEPNAME(map2GC_dryDep(N)))
+!ewl9             !    ENDIF
+!ewl9             !    Write(iulog,*) "dry Species= ", TRIM(drydep_list(N))
+!ewl9             !    IF ( drySpc_ndx(N) > 0 ) THEN
+!ewl9             !        Write(iulog,*) "tracerName = ", TRIM(tracerNames(drySpc_ndx(N)))
+!ewl9             !    ENDIF
+!ewl9             !    Write(iulog,*) "CLM-depVel = ", &
+!ewl9             !  MAXVAL(cam_in%depvel(:nY,N)) * 1.0e-02_fp, " [m/s]"
+!ewl9             !    IF ( map2GC_dryDep(N) > 0 ) THEN
+!ewl9             !        Write(iulog,*) "GC-depVel  = ", &
+!ewl9             !  MAXVAL(State_Chm(LCHNK)%DryDepVel(1,:nY,map2GC_dryDep(N))), " [m/s]"
+!ewl9             !    ENDIF
+!ewl9             !ENDIF
+!ewl9
+!ewl9             IF ( map2GC_dryDep(N) > 0 ) THEN
+!ewl9                ! State_Chm%DryDepVel is in m/s
+!ewl9                State_Chm(LCHNK)%DryDepVel(1,:nY,map2GC_dryDep(N)) = &
+!ewl9                   ! This first bit corresponds to the dry deposition
+!ewl9                   ! velocities over land as computed from CLM and
+!ewl9                   ! converted to m/s. This is scaled by the fraction
+!ewl9                   ! of land.
+!ewl9                     cam_in%depVel(:nY,N) * 1.0e-02_fp &
+!ewl9                      * MAX(0._fp, 1.0_fp - State_Met(LCHNK)%FROCEAN(1,:nY)) &
+!ewl9                   ! This second bit corresponds to the dry deposition
+!ewl9                   ! velocities over ocean and sea ice as computed from
+!ewl9                   ! GEOS-Chem. This is scaled by the fraction of ocean
+!ewl9                   ! and sea ice.
+!ewl9                   + State_Chm(LCHNK)%DryDepVel(1,:nY,map2GC_dryDep(N)) &
+!ewl9                     * State_Met(LCHNK)%FROCEAN(1,:nY)
+!ewl9             ENDIF
+!ewl9          ENDDO
+!ewl9       ENDIF
+!ewl9
+!ewl9       CALL Update_DryDepFreq( Input_Opt  = Input_Opt,         &
+!ewl9                               State_Chm  = State_Chm(LCHNK),  &
+!ewl9                               State_Diag = State_Diag(LCHNK), &
+!ewl9                               State_Grid = State_Grid(LCHNK), &
+!ewl9                               State_Met  = State_Met(LCHNK),  &
+!ewl9                               RC         = RC                )
+!ewl9
+!ewl9    ENDIF
 
     !===========================================================
     !      ***** M I X E D   L A Y E R   M I X I N G *****
@@ -3646,17 +3658,18 @@ contains
 
     print *, "ewl: in chem_timestep_tend, before adding drydep flux"
 
-    DO ND = 1, State_Chm(BEGCHUNK)%nDryDep
-       ! Get the species ID from the drydep ID
-       N = State_Chm(BEGCHUNK)%Map_DryDep(ND)
-       IF ( N <= 0 ) CYCLE
-
-       M = map2GCinv(N)
-       IF ( M <= 0 ) CYCLE
-
-       cam_in%cflx(1:nY,M) = cam_in%cflx(1:nY,M) &
-                           + State_Chm(LCHNK)%SurfaceFlux(1,1:nY,N)
-    ENDDO
+!ewl10: comment this out. Need to better understand what needs to be on for it to work.
+!ewl10    DO ND = 1, State_Chm(BEGCHUNK)%nDryDep
+!ewl10       ! Get the species ID from the drydep ID
+!ewl10       N = State_Chm(BEGCHUNK)%Map_DryDep(ND)
+!ewl10       IF ( N <= 0 ) CYCLE
+!ewl10
+!ewl10       M = map2GCinv(N)
+!ewl10       IF ( M <= 0 ) CYCLE
+!ewl10
+!ewl10       cam_in%cflx(1:nY,M) = cam_in%cflx(1:nY,M) &
+!ewl10                           + State_Chm(LCHNK)%SurfaceFlux(1,1:nY,N)
+!ewl10    ENDDO
 
     !-----------------------------------------------------------------------
     ! Add non-surface emissions
@@ -3715,331 +3728,343 @@ contains
     !               ***** C H E M I S T R Y *****
     !==============================================================
 
-    call t_startf( 'chemdr' )
+!ewl12: comment out chemistry
+!ewl12    print *, "ewl: in chem_timestep_tend, start of chemistry (currently commented out)"
+!ewl12
+!ewl12    call t_startf( 'chemdr' )
+!ewl12
+!ewl12    ! Get the overhead column O3 for use with FAST-J
+!ewl12    IF ( Input_Opt%Its_A_FullChem_Sim .OR. &
+!ewl12         Input_Opt%Its_An_Aerosol_Sim ) THEN
+!ewl12
+!ewl12       IF ( Input_Opt%LChem ) THEN
+!ewl12          CALL Compute_Overhead_O3( Input_Opt       = Input_Opt,                 &
+!ewl12                                    State_Grid      = State_Grid(LCHNK),         &
+!ewl12                                    State_Chm       = State_Chm(LCHNK),          &
+!ewl12                                    DAY             = currDy,                    &
+!ewl12                                    USE_O3_FROM_MET = Input_Opt%Use_O3_From_Met, &
+!ewl12                                    TO3             = State_Met(LCHNK)%TO3,      &
+!ewl12                                    RC              = RC                        )
+!ewl12
+!ewl12          IF ( RC /= GC_SUCCESS ) THEN
+!ewl12             ErrMsg = 'Error encountered in "Compute_Overhead_O3"!'
+!ewl12             CALL Error_Stop( ErrMsg, ThisLoc )
+!ewl12          ENDIF
+!ewl12       ENDIF
+!ewl12    ENDIF
+!ewl12
+!ewl12    IF ( Input_Opt%Its_A_Fullchem_Sim .and. iH2O > 0 ) THEN
+!ewl12       CALL Set_H2O_Trac( SETSTRAT   = .False.               , &
+!ewl12                          Input_Opt  = Input_Opt,              &
+!ewl12                          State_Chm  = State_Chm(LCHNK),       &
+!ewl12                          State_Grid = State_Grid(LCHNK),      &
+!ewl12                          State_Met  = State_Met(LCHNK),       &
+!ewl12                          RC         = RC                     )
+!ewl12
+!ewl12       ! Trap potential errors
+!ewl12       IF ( RC /= GC_SUCCESS ) THEN
+!ewl12          ErrMsg = 'Error encountered in "Set_H2O_Trac" #2!'
+!ewl12          CALL Error_Stop( ErrMsg, ThisLoc )
+!ewl12       ENDIF
+!ewl12    ENDIF
+!ewl12
+!ewl12    ! Here, we apply surface mixing ratios for long-lived species
+!ewl12    ! (copied from sfcvmr_mod.F90)
+!ewl12    ! Loop over all objects
+!ewl12    iSfcMrObj => SfcMrHead
+!ewl12    DO WHILE( ASSOCIATED( iSfcMrObj ) )
+!ewl12
+!ewl12       ! Get concentration for this species
+!ewl12       tmpIdx = pbuf_get_index(TRIM(iSfcMrObj%FldName), RC)
+!ewl12       IF ( tmpIdx < 0 .OR. (iStep == 1) ) THEN
+!ewl12          IF ( rootChunk ) Write(iulog,*) "chem_timestep_tend: Field not found ", TRIM(iSfcMrObj%FldName)
+!ewl12       ELSE
+!ewl12          CALL pbuf_get_field(pbuf, tmpIdx, pbuf_i)
+!ewl12
+!ewl12          ! Set mixing ratio in PBL
+!ewl12          SpcInfo => State_Chm(LCHNK)%SpcData(iSfcMrObj%SpcID)%Info
+!ewl12          N = SpcInfo%ModelID
+!ewl12          IF ( N > 0 ) THEN
+!ewl12             DO L = 1, nZ
+!ewl12             DO J = 1, nY
+!ewl12                IF ( State_Met(LCHNK)%F_UNDER_PBLTOP(1,J,L) > 0.0_fp ) THEN
+!ewl12                   State_Chm(LCHNK)%Species(1,J,L,N) =     &
+!ewl12                       ( pbuf_i(J) * 1.0e-9_fp       )     &
+!ewl12                     / ( MWDry      / SpcInfo%MW_g   )
+!ewl12                ENDIF  ! end selection of PBL boxes
+!ewl12             ENDDO
+!ewl12             ENDDO
+!ewl12          ENDIF
+!ewl12       ENDIF
+!ewl12
+!ewl12       ! Point to next element in list
+!ewl12       iSfcMrObj => iSfcMrObj%Next
+!ewl12    ENDDO
+!ewl12
+!ewl12    ! Reset photolysis rates
+!ewl12    ZPJ = 0.0e+0_r8
+!ewl12
+!ewl12    print *, "ewl: in chem_timestep_tend, before do_chemistry"
+!ewl12
+!ewl12    ! Perform chemistry
+!ewl12    CALL Do_Chemistry( Input_Opt  = Input_Opt,         &
+!ewl12                       State_Chm  = State_Chm(LCHNK),  &
+!ewl12                       State_Diag = State_Diag(LCHNK), &
+!ewl12                       State_Grid = State_Grid(LCHNK), &
+!ewl12                       State_Met  = State_Met(LCHNK),  &
+!ewl12                       RC         = RC                )
+!ewl12
+!ewl12    IF ( RC /= GC_SUCCESS ) THEN
+!ewl12       ErrMsg = 'Error encountered in "Do_Chemistry"!'
+!ewl12       CALL Error_Stop( ErrMsg, ThisLoc )
+!ewl12    ENDIF
+!ewl12
+!ewl12    print *, "ewl: in chem_timestep_tend, after do_chemistry"
+!ewl12
+!ewl12    ! GEOS-Chem considers CO2 as a dead species and resets its concentration
+!ewl12    ! internally. Right after the call to `Do_Chemistry`, State_Chm%Species(iCO2)
+!ewl12    ! corresponds to the chemically-produced CO2. The real CO2 concentration
+!ewl12    ! is thus the concentration before chemistry + the chemically-produced CO2.
+!ewl12    State_Chm(LCHNK)%Species(1,:nY,:nZ,iCO2) = State_Chm(LCHNK)%Species(1,:nY,:nZ,iCO2) &
+!ewl12                                             + MMR_Beg(:nY,:nZ,iCO2)
+!ewl12
+!ewl12    ! Make sure State_Chm(LCHNK) is back in kg/kg dry!
+!ewl12    IF ( TRIM(State_Chm(LCHNK)%Spc_Units) /= 'kg/kg dry' ) THEN
+!ewl12       Write(iulog,*) 'Current  unit = ', TRIM(State_Chm(LCHNK)%Spc_Units)
+!ewl12       Write(iulog,*) 'Expected unit = kg/ kg dry'
+!ewl12       CALL ENDRUN('Incorrect unit in GEOS-Chem State_Chm%Species')
+!ewl12    ENDIF
+!ewl12
+!ewl12    call t_stopf( 'chemdr' )
 
-    ! Get the overhead column O3 for use with FAST-J
-    IF ( Input_Opt%Its_A_FullChem_Sim .OR. &
-         Input_Opt%Its_An_Aerosol_Sim ) THEN
+!ewl13: comment out residual chemistry operations to save and write J-values
+!ewl13    ! Save and write J-values to pbuf for HEMCO
+!ewl13    ! in HCO_IN_JNO2, HCO_IN_JOH
+!ewl13    FieldName = 'HCO_IN_JNO2'
+!ewl13    tmpIdx = pbuf_get_index(FieldName, RC)
+!ewl13    IF ( tmpIdx < 0 .or. ( iStep == 1 ) ) THEN
+!ewl13       IF ( rootChunk ) Write(iulog,*) "chem_timestep_tend: Field not found ", TRIM(FieldName)
+!ewl13    ELSE
+!ewl13       pbuf_chnk => pbuf_get_chunk(hco_pbuf2d, LCHNK)
+!ewl13       CALL pbuf_get_field(pbuf_chnk, tmpIdx, pbuf_i)
+!ewl13
+!ewl13       ! RXN_NO2: NO2 + hv --> NO  + O
+!ewl13       pbuf_i(:nY) = ZPJ(1,RXN_NO2,1,:nY)
+!ewl13
+!ewl13       pbuf_chnk => NULL()
+!ewl13       pbuf_i    => NULL()
+!ewl13    ENDIF
+!ewl13
+!ewl13    FieldName = 'HCO_IN_JOH'
+!ewl13    tmpIdx = pbuf_get_index(FieldName, RC)
+!ewl13    IF ( tmpIdx < 0 .or. ( iStep == 1 ) ) THEN
+!ewl13       IF ( rootChunk ) Write(iulog,*) "chem_timestep_tend: Field not found ", TRIM(FieldName)
+!ewl13    ELSE
+!ewl13       pbuf_chnk => pbuf_get_chunk(hco_pbuf2d, LCHNK)
+!ewl13       CALL pbuf_get_field(pbuf_chnk, tmpIdx, pbuf_i)
+!ewl13
+!ewl13       ! RXN_O3_1: O3  + hv --> O2  + O
+!ewl13       pbuf_i(:nY) = ZPJ(1,RXN_O3_1,1,:nY)
+!ewl13       pbuf_chnk => NULL()
+!ewl13       pbuf_i   => NULL()
+!ewl13    ENDIF
 
-       IF ( Input_Opt%LChem ) THEN
-          CALL Compute_Overhead_O3( Input_Opt       = Input_Opt,                 &
-                                    State_Grid      = State_Grid(LCHNK),         &
-                                    State_Chm       = State_Chm(LCHNK),          &
-                                    DAY             = currDy,                    &
-                                    USE_O3_FROM_MET = Input_Opt%Use_O3_From_Met, &
-                                    TO3             = State_Met(LCHNK)%TO3,      &
-                                    RC              = RC                        )
-
-          IF ( RC /= GC_SUCCESS ) THEN
-             ErrMsg = 'Error encountered in "Compute_Overhead_O3"!'
-             CALL Error_Stop( ErrMsg, ThisLoc )
-          ENDIF
-       ENDIF
-    ENDIF
-
-    IF ( Input_Opt%Its_A_Fullchem_Sim .and. iH2O > 0 ) THEN
-       CALL Set_H2O_Trac( SETSTRAT   = .False.               , &
-                          Input_Opt  = Input_Opt,              &
-                          State_Chm  = State_Chm(LCHNK),       &
-                          State_Grid = State_Grid(LCHNK),      &
-                          State_Met  = State_Met(LCHNK),       &
-                          RC         = RC                     )
-
-       ! Trap potential errors
-       IF ( RC /= GC_SUCCESS ) THEN
-          ErrMsg = 'Error encountered in "Set_H2O_Trac" #2!'
-          CALL Error_Stop( ErrMsg, ThisLoc )
-       ENDIF
-    ENDIF
-
-    ! Here, we apply surface mixing ratios for long-lived species
-    ! (copied from sfcvmr_mod.F90)
-    ! Loop over all objects
-    iSfcMrObj => SfcMrHead
-    DO WHILE( ASSOCIATED( iSfcMrObj ) )
-
-       ! Get concentration for this species
-       tmpIdx = pbuf_get_index(TRIM(iSfcMrObj%FldName), RC)
-       IF ( tmpIdx < 0 .OR. (iStep == 1) ) THEN
-          IF ( rootChunk ) Write(iulog,*) "chem_timestep_tend: Field not found ", TRIM(iSfcMrObj%FldName)
-       ELSE
-          CALL pbuf_get_field(pbuf, tmpIdx, pbuf_i)
-
-          ! Set mixing ratio in PBL
-          SpcInfo => State_Chm(LCHNK)%SpcData(iSfcMrObj%SpcID)%Info
-          N = SpcInfo%ModelID
-          IF ( N > 0 ) THEN
-             DO L = 1, nZ
-             DO J = 1, nY
-                IF ( State_Met(LCHNK)%F_UNDER_PBLTOP(1,J,L) > 0.0_fp ) THEN
-                   State_Chm(LCHNK)%Species(1,J,L,N) =     &
-                       ( pbuf_i(J) * 1.0e-9_fp       )     &
-                     / ( MWDry      / SpcInfo%MW_g   )
-                ENDIF  ! end selection of PBL boxes
-             ENDDO
-             ENDDO
-          ENDIF
-       ENDIF
-
-       ! Point to next element in list
-       iSfcMrObj => iSfcMrObj%Next
-    ENDDO
-
-    ! Reset photolysis rates
-    ZPJ = 0.0e+0_r8
-
-    ! Perform chemistry
-    CALL Do_Chemistry( Input_Opt  = Input_Opt,         &
-                       State_Chm  = State_Chm(LCHNK),  &
-                       State_Diag = State_Diag(LCHNK), &
-                       State_Grid = State_Grid(LCHNK), &
-                       State_Met  = State_Met(LCHNK),  &
-                       RC         = RC                )
-
-    IF ( RC /= GC_SUCCESS ) THEN
-       ErrMsg = 'Error encountered in "Do_Chemistry"!'
-       CALL Error_Stop( ErrMsg, ThisLoc )
-    ENDIF
-
-    ! GEOS-Chem considers CO2 as a dead species and resets its concentration
-    ! internally. Right after the call to `Do_Chemistry`, State_Chm%Species(iCO2)
-    ! corresponds to the chemically-produced CO2. The real CO2 concentration
-    ! is thus the concentration before chemistry + the chemically-produced CO2.
-    State_Chm(LCHNK)%Species(1,:nY,:nZ,iCO2) = State_Chm(LCHNK)%Species(1,:nY,:nZ,iCO2) &
-                                             + MMR_Beg(:nY,:nZ,iCO2)
-
-    ! Make sure State_Chm(LCHNK) is back in kg/kg dry!
-    IF ( TRIM(State_Chm(LCHNK)%Spc_Units) /= 'kg/kg dry' ) THEN
-       Write(iulog,*) 'Current  unit = ', TRIM(State_Chm(LCHNK)%Spc_Units)
-       Write(iulog,*) 'Expected unit = kg/ kg dry'
-       CALL ENDRUN('Incorrect unit in GEOS-Chem State_Chm%Species')
-    ENDIF
-
-    call t_stopf( 'chemdr' )
-
-    ! Save and write J-values to pbuf for HEMCO
-    ! in HCO_IN_JNO2, HCO_IN_JOH
-    FieldName = 'HCO_IN_JNO2'
-    tmpIdx = pbuf_get_index(FieldName, RC)
-    IF ( tmpIdx < 0 .or. ( iStep == 1 ) ) THEN
-       IF ( rootChunk ) Write(iulog,*) "chem_timestep_tend: Field not found ", TRIM(FieldName)
-    ELSE
-       pbuf_chnk => pbuf_get_chunk(hco_pbuf2d, LCHNK)
-       CALL pbuf_get_field(pbuf_chnk, tmpIdx, pbuf_i)
-
-       ! RXN_NO2: NO2 + hv --> NO  + O
-       pbuf_i(:nY) = ZPJ(1,RXN_NO2,1,:nY)
-
-       pbuf_chnk => NULL()
-       pbuf_i    => NULL()
-    ENDIF
-
-    FieldName = 'HCO_IN_JOH'
-    tmpIdx = pbuf_get_index(FieldName, RC)
-    IF ( tmpIdx < 0 .or. ( iStep == 1 ) ) THEN
-       IF ( rootChunk ) Write(iulog,*) "chem_timestep_tend: Field not found ", TRIM(FieldName)
-    ELSE
-       pbuf_chnk => pbuf_get_chunk(hco_pbuf2d, LCHNK)
-       CALL pbuf_get_field(pbuf_chnk, tmpIdx, pbuf_i)
-
-       ! RXN_O3_1: O3  + hv --> O2  + O
-       pbuf_i(:nY) = ZPJ(1,RXN_O3_1,1,:nY)
-       pbuf_chnk => NULL()
-       pbuf_i   => NULL()
-    ENDIF
-
-    DO N = 1, gas_pcnst
-       ! See definition of map2chm
-       M = map2chm(N)
-       IF ( M > 0 ) THEN
-          vmr1(:nY,:nZ,N) = State_Chm(LCHNK)%Species(1,:nY,nZ:1:-1,M) * &
-                            MWDry / adv_mass(N)
-       ELSEIF ( M < 0 ) THEN
-          vmr1(:nY,:nZ,N) = state%q(:nY,:nZ,-M) * &
-                            MWDry / adv_mass(N)
-       ENDIF
-    ENDDO
+!ewl14: comment out this - what is this?
+!ewl14    DO N = 1, gas_pcnst
+!ewl14       ! See definition of map2chm
+!ewl14       M = map2chm(N)
+!ewl14       IF ( M > 0 ) THEN
+!ewl14          vmr1(:nY,:nZ,N) = State_Chm(LCHNK)%Species(1,:nY,nZ:1:-1,M) * &
+!ewl14                            MWDry / adv_mass(N)
+!ewl14       ELSEIF ( M < 0 ) THEN
+!ewl14          vmr1(:nY,:nZ,N) = state%q(:nY,:nZ,-M) * &
+!ewl14                            MWDry / adv_mass(N)
+!ewl14       ENDIF
+!ewl14    ENDDO
 
     !==============================================================
     ! ***** M A M   G A S - A E R O S O L   E X C H A N G E *****
     !==============================================================
 
-#if defined( MODAL_AERO )
-    ! Repartition SO4 into H2SO4 and so4_a*
-    IF ( l_H2SO4 > 0 .AND. l_SO4 > 0 ) THEN
-       P = l_H2SO4
-       ! SO4_gasRatio is mol(SO4) (gaseous) / mol(SO4) (gaseous+aerosol)
-       vmr1(:nY,:nZ,P) = SO4_gasRatio(:nY,:nZ) * vmr1(:nY,:nZ,l_SO4)
-       ! binRatio is mol(SO4) (current bin) / mol(SO4) (all bins)
-       DO M = 1, ntot_amode
-          N = lptr_so4_a_amode(M)
-          IF ( N <= 0 ) CYCLE
-          P = mapCnst(N)
-          vmr1(:nY,:nZ,P) = vmr1(:nY,:nZ,l_SO4)                &
-                          * ( 1.0_r8 - SO4_gasRatio(:nY,:nZ) ) &
-                          * binRatio(iSulf(M),M,:nY,:nZ)
-       ENDDO
-    ENDIF
-
-    ! Amount of chemically-produced H2SO4 (mol/mol)
-    del_h2so4_gasprod(:nY,:nZ) = vmr1(:nY,:nZ,l_H2SO4) &
-                               - vmr0(:nY,:nZ,l_H2SO4)
-
-    call aero_model_gasaerexch( loffset           = iFirstCnst - 1,         &
-                                ncol              = NCOL,                   &
-                                lchnk             = LCHNK,                  &
-                                troplev           = Trop_Lev(:),            &
-                                delt              = dT,                     &
-                                reaction_rates    = reaction_rates,         &
-                                tfld              = state%t(:,:),           &
-                                pmid              = state%pmid(:,:),        &
-                                pdel              = state%pdel(:,:),        &
-                                mbar              = mBar,                   &
-                                relhum            = relHum(:,:),            &
-                                zm                = state%zm(:,:),          &
-                                qh2o              = qH2O(:,:),              &
-                                cwat              = cldW,                   &
-                                cldfr             = cldFrc,                 &
-                                cldnum            = nCldWtr,                &
-                                airdens           = invariants(:,:,indexm), &
-                                invariants        = invariants,             &
-                                del_h2so4_gasprod = del_h2so4_gasprod,      &
-                                vmr0              = vmr0,                   &
-                                vmr               = vmr1,                   &
-                                pbuf              = pbuf )
-
-    ! Repartition MAM SOAs following mapping:
-    ! TSOA0 + ASOAN + SOAIE + SOAGX -> soa1_a* + soa2_a*
-    ! TSOA1 + ASOA1                 -> soa3_a*
-    ! TSOA2 + ASOA2                 -> soa4_a*
-    ! TSOA3 + ASOA3                 -> soa5_a*
-    ! TSOG0                         -> SOAG0 + SOAG1
-    ! TSOG1 + ASOG1                 -> SOAG2
-    ! TSOG2 + ASOG2                 -> SOAG3
-    ! TSOG3 + ASOG3                 -> SOAG4
-
-    ! Deal with aerosol SOA species
-    ! First deal with lowest two volatility bins
-    speciesName_1 = 'TSOA0'
-    speciesName_2 = 'ASOAN'
-    speciesName_2 = 'SOAIE'
-    speciesName_2 = 'SOAGX'
-    K1 = get_spc_ndx(TRIM(speciesName_1))
-    K2 = get_spc_ndx(TRIM(speciesName_2))
-    K3 = get_spc_ndx(TRIM(speciesName_3))
-    K4 = get_spc_ndx(TRIM(speciesName_4))
-    bulkMass(:nY,:nZ) = 0.0e+00_r8
-    DO iBin = 1, 2
-       DO M = 1, ntot_amode
-          N = lptr2_soa_a_amode(M,iBin)
-          IF ( N <= 0 ) CYCLE
-          bulkMass(:nY,:nZ) = bulkMass(:nY,:nZ) + state%q(:nY,:nZ,N)
-       ENDDO
-    ENDDO
-    DO iBin = 1, 2
-       DO M = 1, ntot_amode
-          N = lptr2_soa_a_amode(M,iBin)
-          IF ( N <= 0 ) CYCLE
-          P = mapCnst(N)
-          IF ( P > 0 .AND. K1 > 0 .AND. K2 > 0 .AND. K3 > 0 .AND. K4 > 0 ) THEN
-             vmr1(:nY,:nZ,P) = state%q(:nY,:nZ,N) / bulkMass(:nY,:nZ) &
-                             * (vmr1(:nY,:nZ,K1) + vmr1(:nY,:nZ,K2) + &
-                                vmr1(:nY,:nZ,K3) + vmr1(:nY,:nZ,K4))
-          ENDIF
-       ENDDO
-    ENDDO
-
-    ! Now deal with other volatility bins
-    DO iBin = 3, nsoa
-       IF ( iBin == 3 ) THEN
-          speciesName_1 = 'TSOA1'
-          speciesName_2 = 'ASOA1'
-       ELSEIF ( iBin == 4 ) THEN
-          speciesName_1 = 'TSOA2'
-          speciesName_2 = 'ASOA2'
-       ELSEIF ( iBin == 5 ) THEN
-          speciesName_1 = 'TSOA3'
-          speciesName_2 = 'ASOA3'
-       ENDIF
-       K1 = get_spc_ndx(TRIM(speciesName_1))
-       K2 = get_spc_ndx(TRIM(speciesName_2))
-       bulkMass(:nY,:nZ) = 0.0e+00_r8
-       DO M = 1, ntot_amode
-          N = lptr2_soa_a_amode(M,iBin)
-          IF ( N <= 0 ) CYCLE
-          bulkMass(:nY,:nZ) = bulkMass(:nY,:nZ) + state%q(:nY,:nZ,N)
-       ENDDO
-       DO M = 1, ntot_amode
-          N = lptr2_soa_a_amode(M,iBin)
-          IF ( N <= 0 ) CYCLE
-          P = mapCnst(N)
-          IF ( P > 0 .AND. K1 > 0 .AND. K2 > 0 ) THEN
-             vmr1(:nY,:nZ,P) = state%q(:nY,:nZ,N) / bulkMass(:nY,:nZ) &
-                             * (vmr1(:nY,:nZ,K1) + vmr1(:nY,:nZ,K2))
-          ENDIF
-       ENDDO
-    ENDDO
-
-    ! Now deal with gaseous SOA species
-    ! Deal with lowest two volatility bins
-    speciesName_1 = 'TSOG0'
-    K1 = get_spc_ndx(TRIM(speciesName_1))
-    N = lptr2_soa_g_amode(1)
-    P = mapCnst(N)
-    vmr1(:nY,:nZ,P) = vmr0(:nY,:nZ,P) / (vmr0(:nY,:nZ,P) + vmr0(:nY,:nZ,mapCnst(lptr2_soa_g_amode(2)))) &
-                    * vmr1(:nY,:nZ,K1)
-    N = lptr2_soa_g_amode(2)
-    P = mapCnst(N)
-    vmr1(:nY,:nZ,P) = vmr0(:nY,:nZ,P) / (vmr0(:nY,:nZ,P) + vmr0(:nY,:nZ,mapCnst(lptr2_soa_g_amode(1)))) &
-                    * vmr1(:nY,:nZ,K1)
-
-    ! Deal with other volatility bins
-    DO iBin = 3, nsoa
-       N = lptr2_soa_g_amode(iBin)
-       P = mapCnst(N)
-       IF ( iBin == 3 ) THEN
-          speciesName_1 = 'TSOG1'
-          speciesName_2 = 'ASOG1'
-       ELSEIF ( iBin == 4 ) THEN
-          speciesName_1 = 'TSOG2'
-          speciesName_2 = 'ASOG2'
-       ELSEIF ( iBin == 5 ) THEN
-          speciesName_1 = 'TSOG3'
-          speciesName_2 = 'ASOG3'
-       ENDIF
-       K1 = get_spc_ndx(TRIM(speciesName_1))
-       K2 = get_spc_ndx(TRIM(speciesName_2))
-       IF ( P > 0 .AND. K1 > 0 .AND. K2 > 0 ) vmr1(:nY,:nZ,P) = vmr1(:nY,:nZ,K1) + vmr1(:nY,:nZ,K2)
-    ENDDO
-
-#endif
+!ewl15: comment out MAM gas-aerosol exchange. Is this even on???
+!ewl15#if defined( MODAL_AERO )
+!ewl15    ! Repartition SO4 into H2SO4 and so4_a*
+!ewl15    IF ( l_H2SO4 > 0 .AND. l_SO4 > 0 ) THEN
+!ewl15       P = l_H2SO4
+!ewl15       ! SO4_gasRatio is mol(SO4) (gaseous) / mol(SO4) (gaseous+aerosol)
+!ewl15       vmr1(:nY,:nZ,P) = SO4_gasRatio(:nY,:nZ) * vmr1(:nY,:nZ,l_SO4)
+!ewl15       ! binRatio is mol(SO4) (current bin) / mol(SO4) (all bins)
+!ewl15       DO M = 1, ntot_amode
+!ewl15          N = lptr_so4_a_amode(M)
+!ewl15          IF ( N <= 0 ) CYCLE
+!ewl15          P = mapCnst(N)
+!ewl15          vmr1(:nY,:nZ,P) = vmr1(:nY,:nZ,l_SO4)                &
+!ewl15                          * ( 1.0_r8 - SO4_gasRatio(:nY,:nZ) ) &
+!ewl15                          * binRatio(iSulf(M),M,:nY,:nZ)
+!ewl15       ENDDO
+!ewl15    ENDIF
+!ewl15
+!ewl15    ! Amount of chemically-produced H2SO4 (mol/mol)
+!ewl15    del_h2so4_gasprod(:nY,:nZ) = vmr1(:nY,:nZ,l_H2SO4) &
+!ewl15                               - vmr0(:nY,:nZ,l_H2SO4)
+!ewl15
+!ewl15    call aero_model_gasaerexch( loffset           = iFirstCnst - 1,         &
+!ewl15                                ncol              = NCOL,                   &
+!ewl15                                lchnk             = LCHNK,                  &
+!ewl15                                troplev           = Trop_Lev(:),            &
+!ewl15                                delt              = dT,                     &
+!ewl15                                reaction_rates    = reaction_rates,         &
+!ewl15                                tfld              = state%t(:,:),           &
+!ewl15                                pmid              = state%pmid(:,:),        &
+!ewl15                                pdel              = state%pdel(:,:),        &
+!ewl15                                mbar              = mBar,                   &
+!ewl15                                relhum            = relHum(:,:),            &
+!ewl15                                zm                = state%zm(:,:),          &
+!ewl15                                qh2o              = qH2O(:,:),              &
+!ewl15                                cwat              = cldW,                   &
+!ewl15                                cldfr             = cldFrc,                 &
+!ewl15                                cldnum            = nCldWtr,                &
+!ewl15                                airdens           = invariants(:,:,indexm), &
+!ewl15                                invariants        = invariants,             &
+!ewl15                                del_h2so4_gasprod = del_h2so4_gasprod,      &
+!ewl15                                vmr0              = vmr0,                   &
+!ewl15                                vmr               = vmr1,                   &
+!ewl15                                pbuf              = pbuf )
+!ewl15
+!ewl15    ! Repartition MAM SOAs following mapping:
+!ewl15    ! TSOA0 + ASOAN + SOAIE + SOAGX -> soa1_a* + soa2_a*
+!ewl15    ! TSOA1 + ASOA1                 -> soa3_a*
+!ewl15    ! TSOA2 + ASOA2                 -> soa4_a*
+!ewl15    ! TSOA3 + ASOA3                 -> soa5_a*
+!ewl15    ! TSOG0                         -> SOAG0 + SOAG1
+!ewl15    ! TSOG1 + ASOG1                 -> SOAG2
+!ewl15    ! TSOG2 + ASOG2                 -> SOAG3
+!ewl15    ! TSOG3 + ASOG3                 -> SOAG4
+!ewl15
+!ewl15    ! Deal with aerosol SOA species
+!ewl15    ! First deal with lowest two volatility bins
+!ewl15    speciesName_1 = 'TSOA0'
+!ewl15    speciesName_2 = 'ASOAN'
+!ewl15    speciesName_2 = 'SOAIE'
+!ewl15    speciesName_2 = 'SOAGX'
+!ewl15    K1 = get_spc_ndx(TRIM(speciesName_1))
+!ewl15    K2 = get_spc_ndx(TRIM(speciesName_2))
+!ewl15    K3 = get_spc_ndx(TRIM(speciesName_3))
+!ewl15    K4 = get_spc_ndx(TRIM(speciesName_4))
+!ewl15    bulkMass(:nY,:nZ) = 0.0e+00_r8
+!ewl15    DO iBin = 1, 2
+!ewl15       DO M = 1, ntot_amode
+!ewl15          N = lptr2_soa_a_amode(M,iBin)
+!ewl15          IF ( N <= 0 ) CYCLE
+!ewl15          bulkMass(:nY,:nZ) = bulkMass(:nY,:nZ) + state%q(:nY,:nZ,N)
+!ewl15       ENDDO
+!ewl15    ENDDO
+!ewl15    DO iBin = 1, 2
+!ewl15       DO M = 1, ntot_amode
+!ewl15          N = lptr2_soa_a_amode(M,iBin)
+!ewl15          IF ( N <= 0 ) CYCLE
+!ewl15          P = mapCnst(N)
+!ewl15          IF ( P > 0 .AND. K1 > 0 .AND. K2 > 0 .AND. K3 > 0 .AND. K4 > 0 ) THEN
+!ewl15             vmr1(:nY,:nZ,P) = state%q(:nY,:nZ,N) / bulkMass(:nY,:nZ) &
+!ewl15                             * (vmr1(:nY,:nZ,K1) + vmr1(:nY,:nZ,K2) + &
+!ewl15                                vmr1(:nY,:nZ,K3) + vmr1(:nY,:nZ,K4))
+!ewl15          ENDIF
+!ewl15       ENDDO
+!ewl15    ENDDO
+!ewl15
+!ewl15    ! Now deal with other volatility bins
+!ewl15    DO iBin = 3, nsoa
+!ewl15       IF ( iBin == 3 ) THEN
+!ewl15          speciesName_1 = 'TSOA1'
+!ewl15          speciesName_2 = 'ASOA1'
+!ewl15       ELSEIF ( iBin == 4 ) THEN
+!ewl15          speciesName_1 = 'TSOA2'
+!ewl15          speciesName_2 = 'ASOA2'
+!ewl15       ELSEIF ( iBin == 5 ) THEN
+!ewl15          speciesName_1 = 'TSOA3'
+!ewl15          speciesName_2 = 'ASOA3'
+!ewl15       ENDIF
+!ewl15       K1 = get_spc_ndx(TRIM(speciesName_1))
+!ewl15       K2 = get_spc_ndx(TRIM(speciesName_2))
+!ewl15       bulkMass(:nY,:nZ) = 0.0e+00_r8
+!ewl15       DO M = 1, ntot_amode
+!ewl15          N = lptr2_soa_a_amode(M,iBin)
+!ewl15          IF ( N <= 0 ) CYCLE
+!ewl15          bulkMass(:nY,:nZ) = bulkMass(:nY,:nZ) + state%q(:nY,:nZ,N)
+!ewl15       ENDDO
+!ewl15       DO M = 1, ntot_amode
+!ewl15          N = lptr2_soa_a_amode(M,iBin)
+!ewl15          IF ( N <= 0 ) CYCLE
+!ewl15          P = mapCnst(N)
+!ewl15          IF ( P > 0 .AND. K1 > 0 .AND. K2 > 0 ) THEN
+!ewl15             vmr1(:nY,:nZ,P) = state%q(:nY,:nZ,N) / bulkMass(:nY,:nZ) &
+!ewl15                             * (vmr1(:nY,:nZ,K1) + vmr1(:nY,:nZ,K2))
+!ewl15          ENDIF
+!ewl15       ENDDO
+!ewl15    ENDDO
+!ewl15
+!ewl15    ! Now deal with gaseous SOA species
+!ewl15    ! Deal with lowest two volatility bins
+!ewl15    speciesName_1 = 'TSOG0'
+!ewl15    K1 = get_spc_ndx(TRIM(speciesName_1))
+!ewl15    N = lptr2_soa_g_amode(1)
+!ewl15    P = mapCnst(N)
+!ewl15    vmr1(:nY,:nZ,P) = vmr0(:nY,:nZ,P) / (vmr0(:nY,:nZ,P) + vmr0(:nY,:nZ,mapCnst(lptr2_soa_g_amode(2)))) &
+!ewl15                    * vmr1(:nY,:nZ,K1)
+!ewl15    N = lptr2_soa_g_amode(2)
+!ewl15    P = mapCnst(N)
+!ewl15    vmr1(:nY,:nZ,P) = vmr0(:nY,:nZ,P) / (vmr0(:nY,:nZ,P) + vmr0(:nY,:nZ,mapCnst(lptr2_soa_g_amode(1)))) &
+!ewl15                    * vmr1(:nY,:nZ,K1)
+!ewl15
+!ewl15    ! Deal with other volatility bins
+!ewl15    DO iBin = 3, nsoa
+!ewl15       N = lptr2_soa_g_amode(iBin)
+!ewl15       P = mapCnst(N)
+!ewl15       IF ( iBin == 3 ) THEN
+!ewl15          speciesName_1 = 'TSOG1'
+!ewl15          speciesName_2 = 'ASOG1'
+!ewl15       ELSEIF ( iBin == 4 ) THEN
+!ewl15          speciesName_1 = 'TSOG2'
+!ewl15          speciesName_2 = 'ASOG2'
+!ewl15       ELSEIF ( iBin == 5 ) THEN
+!ewl15          speciesName_1 = 'TSOG3'
+!ewl15          speciesName_2 = 'ASOG3'
+!ewl15       ENDIF
+!ewl15       K1 = get_spc_ndx(TRIM(speciesName_1))
+!ewl15       K2 = get_spc_ndx(TRIM(speciesName_2))
+!ewl15       IF ( P > 0 .AND. K1 > 0 .AND. K2 > 0 ) vmr1(:nY,:nZ,P) = vmr1(:nY,:nZ,K1) + vmr1(:nY,:nZ,K2)
+!ewl15    ENDDO
+!ewl15
+!ewl15#endif
 
     !==============================================================
     ! ***** W E T   D E P O S I T I O N  (rainout + washout) *****
     !==============================================================
-    IF ( Input_Opt%LWetD ) THEN
-
-       IF ( gas_wetdep_method == 'NEU' ) THEN
-          CALL Neu_wetdep_tend( LCHNK       = LCHNK,      &
-                                NCOL        = NCOL,       &
-                                mmr         = state%q,    &
-                                pmid        = state%pmid, &
-                                pdel        = state%pdel, &
-                                zint        = state%zi,   &
-                                tfld        = state%t,    &
-                                delt        = dT,         &
-                                prain       = PRain,      &
-                                nevapr      = NEvapr,     &
-                                cld         = cldFrc,     &
-                                cmfdqr      = cmfdqr,     &
-                                wd_tend     = ptend%q,    &
-                                wd_tend_int = wetdepflx  )
-       ELSE
-          ErrMsg = 'Unknown gas_wetdep_method '//TRIM(gas_wetdep_method)
-          CALL Error_Stop( ErrMsg, ThisLoc )
-       ENDIF
-
-    ENDIF
+!ewl16: comment out wet deposition
+!ewl16: this should also be able to be accomplished by turning off wet dep in input.geos
+!ewl16    IF ( Input_Opt%LWetD ) THEN
+!ewl16
+!ewl16       IF ( gas_wetdep_method == 'NEU' ) THEN
+!ewl16          CALL Neu_wetdep_tend( LCHNK       = LCHNK,      &
+!ewl16                                NCOL        = NCOL,       &
+!ewl16                                mmr         = state%q,    &
+!ewl16                                pmid        = state%pmid, &
+!ewl16                                pdel        = state%pdel, &
+!ewl16                                zint        = state%zi,   &
+!ewl16                                tfld        = state%t,    &
+!ewl16                                delt        = dT,         &
+!ewl16                                prain       = PRain,      &
+!ewl16                                nevapr      = NEvapr,     &
+!ewl16                                cld         = cldFrc,     &
+!ewl16                                cmfdqr      = cmfdqr,     &
+!ewl16                                wd_tend     = ptend%q,    &
+!ewl16                                wd_tend_int = wetdepflx  )
+!ewl16       ELSE
+!ewl16          ErrMsg = 'Unknown gas_wetdep_method '//TRIM(gas_wetdep_method)
+!ewl16          CALL Error_Stop( ErrMsg, ThisLoc )
+!ewl16       ENDIF
+!ewl16
+!ewl16    ENDIF
 
     !==============================================================
     ! ***** B O U N D A R Y   C O N D I T I O N S            *****
@@ -4048,134 +4073,144 @@ contains
     ! CH4, OCS, N2O, CFC11, CFC12).
     ! Note: This will overwrite the UCX boundary conditions
 
-    CALL flbc_set( vmr1(:nY,:nZ,:), nY, LCHNK, mapCnst )
+!ewl17: comment out setting boundary conditions?? what is this?
+!ewl17    CALL flbc_set( vmr1(:nY,:nZ,:), nY, LCHNK, mapCnst )
+!ewl17
+!ewl17    IF ( ghg_chem ) THEN
+!ewl17       CALL ghg_chem_set_flbc( vmr1, nY )
+!ewl17    ENDIF
+!ewl17
+!ewl17    DO N = 1, gas_pcnst
+!ewl17       ! See definition of map2chm
+!ewl17       M = map2chm(N)
+!ewl17       IF ( M <= 0 ) CYCLE
+!ewl17       State_Chm(LCHNK)%Species(1,:nY,nZ:1:-1,M) = vmr1(:nY,:nZ,N) * &
+!ewl17                        adv_mass(N) / MWDry
+!ewl17    ENDDO
 
-    IF ( ghg_chem ) THEN
-       CALL ghg_chem_set_flbc( vmr1, nY )
-    ENDIF
+!ewl18: comment out checking units
+!ewl18    ! Make sure State_Chm(LCHNK) is back in kg/kg dry!
+!ewl18    IF ( TRIM(State_Chm(LCHNK)%Spc_Units) /= 'kg/kg dry' ) THEN
+!ewl18       Write(iulog,*) 'Current  unit = ', TRIM(State_Chm(LCHNK)%Spc_Units)
+!ewl18       Write(iulog,*) 'Expected unit = kg/ kg dry'
+!ewl18       CALL ENDRUN('Incorrect unit in GEOS-Chem State_Chm%Species')
+!ewl18    ENDIF
 
-    DO N = 1, gas_pcnst
-       ! See definition of map2chm
-       M = map2chm(N)
-       IF ( M <= 0 ) CYCLE
-       State_Chm(LCHNK)%Species(1,:nY,nZ:1:-1,M) = vmr1(:nY,:nZ,N) * &
-                        adv_mass(N) / MWDry
-    ENDDO
+!ewl19: comment out resetting H2O to initial value? what is this?
+!ewl19    ! Reset H2O MMR to the initial value (no chemistry tendency in H2O just yet)
+!ewl19    State_Chm(LCHNK)%Species(1,:,:,iH2O) = MMR_Beg(:,:,iH2O)
 
-    ! Make sure State_Chm(LCHNK) is back in kg/kg dry!
-    IF ( TRIM(State_Chm(LCHNK)%Spc_Units) /= 'kg/kg dry' ) THEN
-       Write(iulog,*) 'Current  unit = ', TRIM(State_Chm(LCHNK)%Spc_Units)
-       Write(iulog,*) 'Expected unit = kg/ kg dry'
-       CALL ENDRUN('Incorrect unit in GEOS-Chem State_Chm%Species')
-    ENDIF
+!ewl20: comment out setting unadvected species data. what is this?
+!ewl20    ! Store unadvected species data
+!ewl20    SlsData = 0.0e+0_r8
+!ewl20    DO N = 1, nSls
+!ewl20       M = map2GC_Sls(N)
+!ewl20       IF ( M <= 0 ) CYCLE
+!ewl20       SlsData(:nY,nZ:1:-1,N) = REAL(State_Chm(LCHNK)%Species(1,:nY,:nZ,M),r8)
+!ewl20    ENDDO
+!ewl20    CALL set_short_lived_species( SlsData, LCHNK, nY, pbuf )
 
-    ! Reset H2O MMR to the initial value (no chemistry tendency in H2O just yet)
-    State_Chm(LCHNK)%Species(1,:,:,iH2O) = MMR_Beg(:,:,iH2O)
+!ewl21: comment out applying tendencies to geos-chem species?
+!ewl21    ! Apply tendencies to GEOS-Chem species
+!ewl21    DO N = 1, pcnst
+!ewl21       M = map2GC(N)
+!ewl21       IF ( M <= 0 ) CYCLE
+!ewl21       ! Add change in mass mixing ratio to tendencies.
+!ewl21       ! For NEU wet deposition, the wet removal rates are added to
+!ewl21       ! ptend.
+!ewl21       MMR_End(:nY,:nZ,M)     = REAL(State_Chm(LCHNK)%Species(1,:nY,:nZ,M),r8)
+!ewl21       ptend%q(:nY,nZ:1:-1,N) = ptend%q(:nY,nZ:1:-1,N) &
+!ewl21                              + (MMR_End(:nY,:nZ,M)-MMR_Beg(:nY,:nZ,M))/dT
+!ewl21    ENDDO
 
-    ! Store unadvected species data
-    SlsData = 0.0e+0_r8
-    DO N = 1, nSls
-       M = map2GC_Sls(N)
-       IF ( M <= 0 ) CYCLE
-       SlsData(:nY,nZ:1:-1,N) = REAL(State_Chm(LCHNK)%Species(1,:nY,:nZ,M),r8)
-    ENDDO
-    CALL set_short_lived_species( SlsData, LCHNK, nY, pbuf )
+!ewl22: comment out application of tendenencies to MAM aerosols. Is this even on?
+!ewl22#if defined( MODAL_AERO )
+!ewl22    ! Here apply tendencies to MAM aerosols
+!ewl22    ! Initial mass in bin SM is stored as state%q(N)
+!ewl22    ! Final mass in bin SM is stored as binRatio(SM,M) * State_Chm(P)
+!ewl22    !
+!ewl22    ! We decide to apply chemical tendencies to all MAM aerosols,
+!ewl22    ! except so4, for which the chemically-produced sulfate gets
+!ewl22    ! partitioned in aero_model_gasaerexch.
+!ewl22    DO M = 1, ntot_amode
+!ewl22       DO SM = 1, nspec_amode(M)
+!ewl22          N = lmassptr_amode(SM,M)
+!ewl22          P = mapCnst(N)
+!ewl22          IF ( P <= 0 ) CYCLE
+!ewl22          ! Apply tendency from MAM gasaerexch
+!ewl22          ptend%q(:nY,:nZ,N) = ptend%q(:nY,:nZ,N) &
+!ewl22                             + (vmr1(:nY,:nZ,P) - vmr0(:nY,:nZ,P))/dT &
+!ewl22                                  * adv_mass(P) / MWDry
+!ewl22          P = map2MAM4(SM,M)
+!ewl22          IF ( P <= 0 ) CYCLE
+!ewl22          K = map2GC(P)
+!ewl22          IF ( K <= 0 .or. K == iSO4 ) CYCLE
+!ewl22          ! Apply MAM4 chemical tendencies owing to GEOS-Chem aerosol processing
+!ewl22          ptend%q(:nY,:nZ,N) = ptend%q(:nY,:nZ,N)                                  &
+!ewl22                             + (binRatio(SM,M,:nY,:nZ) *                           &
+!ewl22                                REAL(State_Chm(LCHNK)%Species(1,:nY,nZ:1:-1,K),r8) &
+!ewl22                                  * adv_mass(mapCnst(N)) / adv_mass(mapCnst(P))    &
+!ewl22                                - state%q(:nY,:nZ,N))/dT
+!ewl22       ENDDO
+!ewl22       N = numptr_amode(M)
+!ewl22       P = mapCnst(N)
+!ewl22       IF ( P <= 0 ) CYCLE
+!ewl22       ptend%q(:nY,:nZ,N) = ptend%q(:nY,:nZ,N) &
+!ewl22                          + (vmr1(:nY,:nZ,P) - vmr0(:nY,:nZ,P))/dT &
+!ewl22                               * adv_mass(P) / MWDry
+!ewl22    ENDDO
+!ewl22    N = cH2SO4
+!ewl22    P = l_H2SO4
+!ewl22    IF ( P > 0 ) THEN
+!ewl22       ptend%q(:nY,:nZ,N) = ptend%q(:nY,:nZ,N) &
+!ewl22                          + (vmr1(:nY,:nZ,P) - vmr0(:nY,:nZ,P))/dT &
+!ewl22                               * adv_mass(P) / MWDry
+!ewl22    ENDIF
+!ewl22    DO iBin = 1, nsoa
+!ewl22       N = lptr2_soa_g_amode(iBin)
+!ewl22       P = mapCnst(N)
+!ewl22       IF ( P > 0 ) THEN
+!ewl22          ptend%q(:nY,:nZ,N) = ptend%q(:nY,:nZ,N) &
+!ewl22                             + (vmr1(:nY,:nZ,P) - vmr0(:nY,:nZ,P))/dT &
+!ewl22                                  * adv_mass(P) / MWDry
+!ewl22       ENDIF
+!ewl22    ENDDO
+!ewl22#endif
 
-    ! Apply tendencies to GEOS-Chem species
-    DO N = 1, pcnst
-       M = map2GC(N)
-       IF ( M <= 0 ) CYCLE
-       ! Add change in mass mixing ratio to tendencies.
-       ! For NEU wet deposition, the wet removal rates are added to
-       ! ptend.
-       MMR_End(:nY,:nZ,M)     = REAL(State_Chm(LCHNK)%Species(1,:nY,:nZ,M),r8)
-       ptend%q(:nY,nZ:1:-1,N) = ptend%q(:nY,nZ:1:-1,N) &
-                              + (MMR_End(:nY,:nZ,M)-MMR_Beg(:nY,:nZ,M))/dT
-    ENDDO
+!ewl23: comment out calculating tendencies (is that what this is?)
+!ewl23    DO N = 1, gas_pcnst
+!ewl23       ! See definition of map2chm
+!ewl23       M = map2chm(N)
+!ewl23       IF ( M > 0 ) THEN
+!ewl23          mmr_tend(:nY,:nZ,N) = ( REAL(State_Chm(LCHNK)%Species(1,:nY,nZ:1:-1,M),r8) - mmr_tend(:nY,:nZ,N) ) / dT
+!ewl23       ELSEIF ( M < 0 ) THEN
+!ewl23          mmr_tend(:nY,:nZ,N) = ptend%q(:nY,:nZ,-M)
+!ewl23       ENDIF
+!ewl23    ENDDO
 
-#if defined( MODAL_AERO )
-    ! Here apply tendencies to MAM aerosols
-    ! Initial mass in bin SM is stored as state%q(N)
-    ! Final mass in bin SM is stored as binRatio(SM,M) * State_Chm(P)
-    !
-    ! We decide to apply chemical tendencies to all MAM aerosols,
-    ! except so4, for which the chemically-produced sulfate gets
-    ! partitioned in aero_model_gasaerexch.
-    DO M = 1, ntot_amode
-       DO SM = 1, nspec_amode(M)
-          N = lmassptr_amode(SM,M)
-          P = mapCnst(N)
-          IF ( P <= 0 ) CYCLE
-          ! Apply tendency from MAM gasaerexch
-          ptend%q(:nY,:nZ,N) = ptend%q(:nY,:nZ,N) &
-                             + (vmr1(:nY,:nZ,P) - vmr0(:nY,:nZ,P))/dT &
-                                  * adv_mass(P) / MWDry
-          P = map2MAM4(SM,M)
-          IF ( P <= 0 ) CYCLE
-          K = map2GC(P)
-          IF ( K <= 0 .or. K == iSO4 ) CYCLE
-          ! Apply MAM4 chemical tendencies owing to GEOS-Chem aerosol processing
-          ptend%q(:nY,:nZ,N) = ptend%q(:nY,:nZ,N)                                  &
-                             + (binRatio(SM,M,:nY,:nZ) *                           &
-                                REAL(State_Chm(LCHNK)%Species(1,:nY,nZ:1:-1,K),r8) &
-                                  * adv_mass(mapCnst(N)) / adv_mass(mapCnst(P))    &
-                                - state%q(:nY,:nZ,N))/dT
-       ENDDO
-       N = numptr_amode(M)
-       P = mapCnst(N)
-       IF ( P <= 0 ) CYCLE
-       ptend%q(:nY,:nZ,N) = ptend%q(:nY,:nZ,N) &
-                          + (vmr1(:nY,:nZ,P) - vmr0(:nY,:nZ,P))/dT &
-                               * adv_mass(P) / MWDry
-    ENDDO
-    N = cH2SO4
-    P = l_H2SO4
-    IF ( P > 0 ) THEN
-       ptend%q(:nY,:nZ,N) = ptend%q(:nY,:nZ,N) &
-                          + (vmr1(:nY,:nZ,P) - vmr0(:nY,:nZ,P))/dT &
-                               * adv_mass(P) / MWDry
-    ENDIF
-    DO iBin = 1, nsoa
-       N = lptr2_soa_g_amode(iBin)
-       P = mapCnst(N)
-       IF ( P > 0 ) THEN
-          ptend%q(:nY,:nZ,N) = ptend%q(:nY,:nZ,N) &
-                             + (vmr1(:nY,:nZ,P) - vmr0(:nY,:nZ,P))/dT &
-                                  * adv_mass(P) / MWDry
-       ENDIF
-    ENDDO
-#endif
+!ewl24: comment out applying water tendency? Is this an entry in input.geos?
+!ewl24    IF ( Input_Opt%applyQtend ) THEN
+!ewl24       ! Apply GEOS-Chem's H2O mixing ratio tendency to CAM's specific humidity
+!ewl24       ! This requires to set lq(cQ) = lq(cH2O) ( = .True. )
+!ewl24       ptend%q(:,:,cQ) = ptend%q(:,:,cH2O)
+!ewl24    ENDIF
 
-    DO N = 1, gas_pcnst
-       ! See definition of map2chm
-       M = map2chm(N)
-       IF ( M > 0 ) THEN
-          mmr_tend(:nY,:nZ,N) = ( REAL(State_Chm(LCHNK)%Species(1,:nY,nZ:1:-1,M),r8) - mmr_tend(:nY,:nZ,N) ) / dT
-       ELSEIF ( M < 0 ) THEN
-          mmr_tend(:nY,:nZ,N) = ptend%q(:nY,:nZ,-M)
-       ENDIF
-    ENDDO
+!ewl25: comment out calculating CESM-GC diagnostics
+!ewl25    CALL CESMGC_Diag_Calc( Input_Opt  = Input_Opt,         &
+!ewl25                           State_Chm  = State_Chm(LCHNK),  &
+!ewl25                           State_Diag = State_Diag(LCHNK), &
+!ewl25                           State_Grid = State_Grid(LCHNK), &
+!ewl25                           State_Met  = State_Met(LCHNK),  &
+!ewl25                           cam_in     = cam_in,            &
+!ewl25                           state      = state,             &
+!ewl25                           mmr_tend   = mmr_tend,          &
+!ewl25                           LCHNK      = LCHNK             )
 
-    IF ( Input_Opt%applyQtend ) THEN
-       ! Apply GEOS-Chem's H2O mixing ratio tendency to CAM's specific humidity
-       ! This requires to set lq(cQ) = lq(cH2O) ( = .True. )
-       ptend%q(:,:,cQ) = ptend%q(:,:,cH2O)
-    ENDIF
-
-    CALL CESMGC_Diag_Calc( Input_Opt  = Input_Opt,         &
-                           State_Chm  = State_Chm(LCHNK),  &
-                           State_Diag = State_Diag(LCHNK), &
-                           State_Grid = State_Grid(LCHNK), &
-                           State_Met  = State_Met(LCHNK),  &
-                           cam_in     = cam_in,            &
-                           state      = state,             &
-                           mmr_tend   = mmr_tend,          &
-                           LCHNK      = LCHNK             )
-
-    IF ( ghg_chem ) THEN
-       ptend%lq(1) = .True.
-       CALL outfld( 'CT_H2O_GHG', ptend%q(:,:,1), PCOLS, LCHNK )
-    ENDIF
+!ewl26: comment out this - what is it??
+!ewl26    IF ( ghg_chem ) THEN
+!ewl26       ptend%lq(1) = .True.
+!ewl26       CALL outfld( 'CT_H2O_GHG', ptend%q(:,:,1), PCOLS, LCHNK )
+!ewl26    ENDIF
 
     !! Debug statements
     !! Ozone tendencies
@@ -4184,12 +4219,13 @@ contains
     !   Write(iulog,*) " MMR_End = ", MMR_End(1,:,iO3)
     !ENDIF
 
-    IF (PRESENT(fh2o)) THEN
-       fh2o(:nY) = 0.0e+0_r8
-       !DO L = 1, nZ
-       !   fh2o(:nY) = fh2o(:nY) + ptend%q(:nY,L,iH2O)*state%pdel(:nY,L)/Gravit
-       !ENDDO
-    ENDIF
+!ewl27: comment out resetting water flux
+!ewl27    IF (PRESENT(fh2o)) THEN
+!ewl27       fh2o(:nY) = 0.0e+0_r8
+!ewl27       !DO L = 1, nZ
+!ewl27       !   fh2o(:nY) = fh2o(:nY) + ptend%q(:nY,L,iH2O)*state%pdel(:nY,L)/Gravit
+!ewl27       !ENDDO
+!ewl27    ENDIF
 
     ! Nullify all pointers
     Nullify(PblH    )
