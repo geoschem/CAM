@@ -270,6 +270,8 @@ subroutine chem_surfvals_init()
    character(len=*), parameter :: sub = 'chem_surfvals_init'
    !-----------------------------------------------------------------------
 
+   if (masterproc) print *, "ewl: in chem_surfvals_init 1"
+
    if (use_simple_phys) return
 
    if (scenario_ghg == 'FIXED') then
@@ -330,6 +332,8 @@ subroutine chem_surfvals_init()
       call chem_surfvals_set()
 
    endif
+
+   print *, "ewl: in chem_surfvals_init 2"
 
    if (masterproc) then
       write(iulog,*) ' '

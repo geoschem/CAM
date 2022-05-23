@@ -856,6 +856,8 @@ contains
 
     ENDIF
 
+    IF ( Input_Opt%amIRoot) print *, "ewl: in chemistry.F90 - got here 1"
+
     !==================================================================
     ! Broadcast to all processors
     !==================================================================
@@ -3628,6 +3630,8 @@ contains
     ! Add surface emissions to cam_in
     !-----------------------------------------------------------------------
 
+    print *, "ewl: in chem_timestep_tend, before CESMGC_Emissions_Calc"
+
     CALL CESMGC_Emissions_Calc( state      = state,            &
                                 hco_pbuf2d = hco_pbuf2d,       &
                                 State_Met  = State_Met(LCHNK), &
@@ -3639,6 +3643,8 @@ contains
     ! Add dry deposition flux 
     ! (stored as SurfaceFlux = -dflx)
     !-----------------------------------------------------------------------
+
+    print *, "ewl: in chem_timestep_tend, before adding drydep flux"
 
     DO ND = 1, State_Chm(BEGCHUNK)%nDryDep
        ! Get the species ID from the drydep ID
@@ -3656,6 +3662,8 @@ contains
     ! Add non-surface emissions
     !-----------------------------------------------------------------------
 
+    print *, "ewl: in chem_timestep_tend, before converting species units"
+
     ! Use units of kg/m2 as State_Chm%Species to add emissions fluxes
     CALL Convert_Spc_Units( Input_Opt  = Input_Opt,         &
                             State_Chm  = State_Chm(LCHNK),  &
@@ -3669,6 +3677,8 @@ contains
        ErrMsg = 'Error encountered in "Convert_Spc_Units"!'
        CALL Error_Stop( ErrMsg, ThisLoc )
     ENDIF
+
+    print *, "ewl: in chem_timestep_tend, before adding emissions flux"
 
     DO N = 1, pcnst
        M = map2GC(N)
@@ -3684,6 +3694,8 @@ contains
                                    / ( g0_100 * State_Met(LCHNK)%DELP_DRY(1,:nY,:nZ) )
        ENDIF
     ENDDO
+
+    print *, "ewl: in chem_timestep_tend, before converting species units 2"
 
     ! Convert back to original unit
     CALL Convert_Spc_Units( Input_Opt  = Input_Opt,         &

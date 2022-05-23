@@ -171,10 +171,9 @@ subroutine neu_wetdep_init
     end do
     if ( mapping_to_heff(m) == -99 ) then
           if ( debug ) print '(a,a,a,a,a)','ERROR: gas wetdep species (test_name) not found in species table: ',trim(gas_wetdep_list(m)),' ( ',trim(test_name),' ) '
-      if (masterproc) print *,'problem with mapping_to_heff of ',trim(test_name)
-!      call endrun()
-
        ! ewl debugging: kludge until I can add the new species to species table in seq_drydep_mod.F90
+!ewl      if (masterproc) print *,'problem with mapping_to_heff of ',trim(test_name)
+!ewl      call endrun()
        mapping_to_heff(m) = 1
        ! ewl debugging: end kludge
     end if

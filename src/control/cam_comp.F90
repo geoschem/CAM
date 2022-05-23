@@ -185,8 +185,12 @@ subroutine cam_init(                                             &
    call ionosphere_init()
 
 #if (defined HEMCO_CESM)
+   if (masterproc) print *, "ewl: calling hcoi_chunk_init!"
+
    ! initialize harmonized emissions component (HEMCO)
    call hcoi_chunk_init()
+
+   if (masterproc) print *, "ewl: finished hcoi_chunk_init!"
 #endif
 
    if (initial_run_in) then
