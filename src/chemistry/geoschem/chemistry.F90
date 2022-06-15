@@ -3730,113 +3730,113 @@ contains
     !==============================================================
 
 !ewl12: comment out chemistry
-!ewl12    print *, "ewl: in chem_timestep_tend, start of chemistry (currently commented out)"
-!ewl12
-!ewl12    call t_startf( 'chemdr' )
-!ewl12
-!ewl12    ! Get the overhead column O3 for use with FAST-J
-!ewl12    IF ( Input_Opt%Its_A_FullChem_Sim .OR. &
-!ewl12         Input_Opt%Its_An_Aerosol_Sim ) THEN
-!ewl12
-!ewl12       IF ( Input_Opt%LChem ) THEN
-!ewl12          CALL Compute_Overhead_O3( Input_Opt       = Input_Opt,                 &
-!ewl12                                    State_Grid      = State_Grid(LCHNK),         &
-!ewl12                                    State_Chm       = State_Chm(LCHNK),          &
-!ewl12                                    DAY             = currDy,                    &
-!ewl12                                    USE_O3_FROM_MET = Input_Opt%Use_O3_From_Met, &
-!ewl12                                    TO3             = State_Met(LCHNK)%TO3,      &
-!ewl12                                    RC              = RC                        )
-!ewl12
-!ewl12          IF ( RC /= GC_SUCCESS ) THEN
-!ewl12             ErrMsg = 'Error encountered in "Compute_Overhead_O3"!'
-!ewl12             CALL Error_Stop( ErrMsg, ThisLoc )
-!ewl12          ENDIF
-!ewl12       ENDIF
-!ewl12    ENDIF
-!ewl12
-!ewl12    IF ( Input_Opt%Its_A_Fullchem_Sim .and. iH2O > 0 ) THEN
-!ewl12       CALL Set_H2O_Trac( SETSTRAT   = .False.               , &
-!ewl12                          Input_Opt  = Input_Opt,              &
-!ewl12                          State_Chm  = State_Chm(LCHNK),       &
-!ewl12                          State_Grid = State_Grid(LCHNK),      &
-!ewl12                          State_Met  = State_Met(LCHNK),       &
-!ewl12                          RC         = RC                     )
-!ewl12
-!ewl12       ! Trap potential errors
-!ewl12       IF ( RC /= GC_SUCCESS ) THEN
-!ewl12          ErrMsg = 'Error encountered in "Set_H2O_Trac" #2!'
-!ewl12          CALL Error_Stop( ErrMsg, ThisLoc )
-!ewl12       ENDIF
-!ewl12    ENDIF
-!ewl12
-!ewl12    ! Here, we apply surface mixing ratios for long-lived species
-!ewl12    ! (copied from sfcvmr_mod.F90)
-!ewl12    ! Loop over all objects
-!ewl12    iSfcMrObj => SfcMrHead
-!ewl12    DO WHILE( ASSOCIATED( iSfcMrObj ) )
-!ewl12
-!ewl12       ! Get concentration for this species
-!ewl12       tmpIdx = pbuf_get_index(TRIM(iSfcMrObj%FldName), RC)
-!ewl12       IF ( tmpIdx < 0 .OR. (iStep == 1) ) THEN
-!ewl12          IF ( rootChunk ) Write(iulog,*) "chem_timestep_tend: Field not found ", TRIM(iSfcMrObj%FldName)
-!ewl12       ELSE
-!ewl12          CALL pbuf_get_field(pbuf, tmpIdx, pbuf_i)
-!ewl12
-!ewl12          ! Set mixing ratio in PBL
-!ewl12          SpcInfo => State_Chm(LCHNK)%SpcData(iSfcMrObj%SpcID)%Info
-!ewl12          N = SpcInfo%ModelID
-!ewl12          IF ( N > 0 ) THEN
-!ewl12             DO L = 1, nZ
-!ewl12             DO J = 1, nY
-!ewl12                IF ( State_Met(LCHNK)%F_UNDER_PBLTOP(1,J,L) > 0.0_fp ) THEN
-!ewl12                   State_Chm(LCHNK)%Species(1,J,L,N) =     &
-!ewl12                       ( pbuf_i(J) * 1.0e-9_fp       )     &
-!ewl12                     / ( MWDry      / SpcInfo%MW_g   )
-!ewl12                ENDIF  ! end selection of PBL boxes
-!ewl12             ENDDO
-!ewl12             ENDDO
-!ewl12          ENDIF
-!ewl12       ENDIF
-!ewl12
-!ewl12       ! Point to next element in list
-!ewl12       iSfcMrObj => iSfcMrObj%Next
-!ewl12    ENDDO
-!ewl12
-!ewl12    ! Reset photolysis rates
-!ewl12    ZPJ = 0.0e+0_r8
-!ewl12
-!ewl12    print *, "ewl: in chem_timestep_tend, before do_chemistry"
-!ewl12
-!ewl12    ! Perform chemistry
-!ewl12    CALL Do_Chemistry( Input_Opt  = Input_Opt,         &
-!ewl12                       State_Chm  = State_Chm(LCHNK),  &
-!ewl12                       State_Diag = State_Diag(LCHNK), &
-!ewl12                       State_Grid = State_Grid(LCHNK), &
-!ewl12                       State_Met  = State_Met(LCHNK),  &
-!ewl12                       RC         = RC                )
-!ewl12
-!ewl12    IF ( RC /= GC_SUCCESS ) THEN
-!ewl12       ErrMsg = 'Error encountered in "Do_Chemistry"!'
-!ewl12       CALL Error_Stop( ErrMsg, ThisLoc )
-!ewl12    ENDIF
-!ewl12
-!ewl12    print *, "ewl: in chem_timestep_tend, after do_chemistry"
-!ewl12
-!ewl12    ! GEOS-Chem considers CO2 as a dead species and resets its concentration
-!ewl12    ! internally. Right after the call to `Do_Chemistry`, State_Chm%Species(iCO2)
-!ewl12    ! corresponds to the chemically-produced CO2. The real CO2 concentration
-!ewl12    ! is thus the concentration before chemistry + the chemically-produced CO2.
-!ewl12    State_Chm(LCHNK)%Species(1,:nY,:nZ,iCO2) = State_Chm(LCHNK)%Species(1,:nY,:nZ,iCO2) &
-!ewl12                                             + MMR_Beg(:nY,:nZ,iCO2)
-!ewl12
-!ewl12    ! Make sure State_Chm(LCHNK) is back in kg/kg dry!
-!ewl12    IF ( TRIM(State_Chm(LCHNK)%Spc_Units) /= 'kg/kg dry' ) THEN
-!ewl12       Write(iulog,*) 'Current  unit = ', TRIM(State_Chm(LCHNK)%Spc_Units)
-!ewl12       Write(iulog,*) 'Expected unit = kg/ kg dry'
-!ewl12       CALL ENDRUN('Incorrect unit in GEOS-Chem State_Chm%Species')
-!ewl12    ENDIF
-!ewl12
-!ewl12    call t_stopf( 'chemdr' )
+    IF (masterproc) print *, "ewl: in chem_timestep_tend, start of chemistry (currently commented out)"
+
+    call t_startf( 'chemdr' )
+
+    ! Get the overhead column O3 for use with FAST-J
+    IF ( Input_Opt%Its_A_FullChem_Sim .OR. &
+         Input_Opt%Its_An_Aerosol_Sim ) THEN
+
+       IF ( Input_Opt%LChem ) THEN
+          CALL Compute_Overhead_O3( Input_Opt       = Input_Opt,                 &
+                                    State_Grid      = State_Grid(LCHNK),         &
+                                    State_Chm       = State_Chm(LCHNK),          &
+                                    DAY             = currDy,                    &
+                                    USE_O3_FROM_MET = Input_Opt%Use_O3_From_Met, &
+                                    TO3             = State_Met(LCHNK)%TO3,      &
+                                    RC              = RC                        )
+
+          IF ( RC /= GC_SUCCESS ) THEN
+             ErrMsg = 'Error encountered in "Compute_Overhead_O3"!'
+             CALL Error_Stop( ErrMsg, ThisLoc )
+          ENDIF
+       ENDIF
+    ENDIF
+
+    IF ( Input_Opt%Its_A_Fullchem_Sim .and. iH2O > 0 ) THEN
+       CALL Set_H2O_Trac( SETSTRAT   = .False.               , &
+                          Input_Opt  = Input_Opt,              &
+                          State_Chm  = State_Chm(LCHNK),       &
+                          State_Grid = State_Grid(LCHNK),      &
+                          State_Met  = State_Met(LCHNK),       &
+                          RC         = RC                     )
+
+       ! Trap potential errors
+       IF ( RC /= GC_SUCCESS ) THEN
+          ErrMsg = 'Error encountered in "Set_H2O_Trac" #2!'
+          CALL Error_Stop( ErrMsg, ThisLoc )
+       ENDIF
+    ENDIF
+
+    ! Here, we apply surface mixing ratios for long-lived species
+    ! (copied from sfcvmr_mod.F90)
+    ! Loop over all objects
+    iSfcMrObj => SfcMrHead
+    DO WHILE( ASSOCIATED( iSfcMrObj ) )
+
+       ! Get concentration for this species
+       tmpIdx = pbuf_get_index(TRIM(iSfcMrObj%FldName), RC)
+       IF ( tmpIdx < 0 .OR. (iStep == 1) ) THEN
+          IF ( rootChunk ) Write(iulog,*) "chem_timestep_tend: Field not found ", TRIM(iSfcMrObj%FldName)
+       ELSE
+          CALL pbuf_get_field(pbuf, tmpIdx, pbuf_i)
+
+          ! Set mixing ratio in PBL
+          SpcInfo => State_Chm(LCHNK)%SpcData(iSfcMrObj%SpcID)%Info
+          N = SpcInfo%ModelID
+          IF ( N > 0 ) THEN
+             DO L = 1, nZ
+             DO J = 1, nY
+                IF ( State_Met(LCHNK)%F_UNDER_PBLTOP(1,J,L) > 0.0_fp ) THEN
+                   State_Chm(LCHNK)%Species(1,J,L,N) =     &
+                       ( pbuf_i(J) * 1.0e-9_fp       )     &
+                     / ( MWDry      / SpcInfo%MW_g   )
+                ENDIF  ! end selection of PBL boxes
+             ENDDO
+             ENDDO
+          ENDIF
+       ENDIF
+
+       ! Point to next element in list
+       iSfcMrObj => iSfcMrObj%Next
+    ENDDO
+
+    ! Reset photolysis rates
+    ZPJ = 0.0e+0_r8
+
+    IF (masterproc) print *, "ewl: in chem_timestep_tend, before do_chemistry"
+
+    ! Perform chemistry
+    CALL Do_Chemistry( Input_Opt  = Input_Opt,         &
+                       State_Chm  = State_Chm(LCHNK),  &
+                       State_Diag = State_Diag(LCHNK), &
+                       State_Grid = State_Grid(LCHNK), &
+                       State_Met  = State_Met(LCHNK),  &
+                       RC         = RC                )
+
+    IF ( RC /= GC_SUCCESS ) THEN
+       ErrMsg = 'Error encountered in "Do_Chemistry"!'
+       CALL Error_Stop( ErrMsg, ThisLoc )
+    ENDIF
+
+    IF (masterproc) print *, "ewl: in chem_timestep_tend, after do_chemistry"
+
+    ! GEOS-Chem considers CO2 as a dead species and resets its concentration
+    ! internally. Right after the call to `Do_Chemistry`, State_Chm%Species(iCO2)
+    ! corresponds to the chemically-produced CO2. The real CO2 concentration
+    ! is thus the concentration before chemistry + the chemically-produced CO2.
+    State_Chm(LCHNK)%Species(1,:nY,:nZ,iCO2) = State_Chm(LCHNK)%Species(1,:nY,:nZ,iCO2) &
+                                             + MMR_Beg(:nY,:nZ,iCO2)
+
+    ! Make sure State_Chm(LCHNK) is back in kg/kg dry!
+    IF ( TRIM(State_Chm(LCHNK)%Spc_Units) /= 'kg/kg dry' ) THEN
+       Write(iulog,*) 'Current  unit = ', TRIM(State_Chm(LCHNK)%Spc_Units)
+       Write(iulog,*) 'Expected unit = kg/ kg dry'
+       CALL ENDRUN('Incorrect unit in GEOS-Chem State_Chm%Species')
+    ENDIF
+
+    call t_stopf( 'chemdr' )
 
 !ewl13: comment out residual chemistry operations to save and write J-values
 !ewl13    ! Save and write J-values to pbuf for HEMCO
