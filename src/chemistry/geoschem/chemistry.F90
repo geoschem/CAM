@@ -3729,7 +3729,6 @@ contains
     !               ***** C H E M I S T R Y *****
     !==============================================================
 
-!ewl12: comment out chemistry
     IF (masterproc) print *, "ewl: in chem_timestep_tend, start of chemistry (currently commented out)"
 
     call t_startf( 'chemdr' )
@@ -3839,49 +3838,49 @@ contains
     call t_stopf( 'chemdr' )
 
 !ewl13: comment out residual chemistry operations to save and write J-values
-!ewl13    ! Save and write J-values to pbuf for HEMCO
-!ewl13    ! in HCO_IN_JNO2, HCO_IN_JOH
-!ewl13    FieldName = 'HCO_IN_JNO2'
-!ewl13    tmpIdx = pbuf_get_index(FieldName, RC)
-!ewl13    IF ( tmpIdx < 0 .or. ( iStep == 1 ) ) THEN
-!ewl13       IF ( rootChunk ) Write(iulog,*) "chem_timestep_tend: Field not found ", TRIM(FieldName)
-!ewl13    ELSE
-!ewl13       pbuf_chnk => pbuf_get_chunk(hco_pbuf2d, LCHNK)
-!ewl13       CALL pbuf_get_field(pbuf_chnk, tmpIdx, pbuf_i)
-!ewl13
-!ewl13       ! RXN_NO2: NO2 + hv --> NO  + O
-!ewl13       pbuf_i(:nY) = ZPJ(1,RXN_NO2,1,:nY)
-!ewl13
-!ewl13       pbuf_chnk => NULL()
-!ewl13       pbuf_i    => NULL()
-!ewl13    ENDIF
-!ewl13
-!ewl13    FieldName = 'HCO_IN_JOH'
-!ewl13    tmpIdx = pbuf_get_index(FieldName, RC)
-!ewl13    IF ( tmpIdx < 0 .or. ( iStep == 1 ) ) THEN
-!ewl13       IF ( rootChunk ) Write(iulog,*) "chem_timestep_tend: Field not found ", TRIM(FieldName)
-!ewl13    ELSE
-!ewl13       pbuf_chnk => pbuf_get_chunk(hco_pbuf2d, LCHNK)
-!ewl13       CALL pbuf_get_field(pbuf_chnk, tmpIdx, pbuf_i)
-!ewl13
-!ewl13       ! RXN_O3_1: O3  + hv --> O2  + O
-!ewl13       pbuf_i(:nY) = ZPJ(1,RXN_O3_1,1,:nY)
-!ewl13       pbuf_chnk => NULL()
-!ewl13       pbuf_i   => NULL()
-!ewl13    ENDIF
+    ! Save and write J-values to pbuf for HEMCO
+    ! in HCO_IN_JNO2, HCO_IN_JOH
+    FieldName = 'HCO_IN_JNO2'
+    tmpIdx = pbuf_get_index(FieldName, RC)
+    IF ( tmpIdx < 0 .or. ( iStep == 1 ) ) THEN
+       IF ( rootChunk ) Write(iulog,*) "chem_timestep_tend: Field not found ", TRIM(FieldName)
+    ELSE
+       pbuf_chnk => pbuf_get_chunk(hco_pbuf2d, LCHNK)
+       CALL pbuf_get_field(pbuf_chnk, tmpIdx, pbuf_i)
+
+       ! RXN_NO2: NO2 + hv --> NO  + O
+       pbuf_i(:nY) = ZPJ(1,RXN_NO2,1,:nY)
+
+       pbuf_chnk => NULL()
+       pbuf_i    => NULL()
+    ENDIF
+
+    FieldName = 'HCO_IN_JOH'
+    tmpIdx = pbuf_get_index(FieldName, RC)
+    IF ( tmpIdx < 0 .or. ( iStep == 1 ) ) THEN
+       IF ( rootChunk ) Write(iulog,*) "chem_timestep_tend: Field not found ", TRIM(FieldName)
+    ELSE
+       pbuf_chnk => pbuf_get_chunk(hco_pbuf2d, LCHNK)
+       CALL pbuf_get_field(pbuf_chnk, tmpIdx, pbuf_i)
+
+       ! RXN_O3_1: O3  + hv --> O2  + O
+       pbuf_i(:nY) = ZPJ(1,RXN_O3_1,1,:nY)
+       pbuf_chnk => NULL()
+       pbuf_i   => NULL()
+    ENDIF
 
 !ewl14: comment out this - what is this?
-!ewl14    DO N = 1, gas_pcnst
-!ewl14       ! See definition of map2chm
-!ewl14       M = map2chm(N)
-!ewl14       IF ( M > 0 ) THEN
-!ewl14          vmr1(:nY,:nZ,N) = State_Chm(LCHNK)%Species(1,:nY,nZ:1:-1,M) * &
-!ewl14                            MWDry / adv_mass(N)
-!ewl14       ELSEIF ( M < 0 ) THEN
-!ewl14          vmr1(:nY,:nZ,N) = state%q(:nY,:nZ,-M) * &
-!ewl14                            MWDry / adv_mass(N)
-!ewl14       ENDIF
-!ewl14    ENDDO
+    DO N = 1, gas_pcnst
+       ! See definition of map2chm
+       M = map2chm(N)
+       IF ( M > 0 ) THEN
+          vmr1(:nY,:nZ,N) = State_Chm(LCHNK)%Species(1,:nY,nZ:1:-1,M) * &
+                            MWDry / adv_mass(N)
+       ELSEIF ( M < 0 ) THEN
+          vmr1(:nY,:nZ,N) = state%q(:nY,:nZ,-M) * &
+                            MWDry / adv_mass(N)
+       ENDIF
+    ENDDO
 
     !==============================================================
     ! ***** M A M   G A S - A E R O S O L   E X C H A N G E *****
