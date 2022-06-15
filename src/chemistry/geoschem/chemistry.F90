@@ -854,7 +854,7 @@ contains
 
     ENDIF
 
-    IF ( Input_Opt%amIRoot) print *, "ewl: in chemistry.F90 - got here 1"
+    IF (masterproc) print *, "ewl: in chemistry.F90 - got here 1"
 
     !==================================================================
     ! Broadcast to all processors
@@ -1145,7 +1145,6 @@ contains
     maxGrid%NZ = nZ
 
     Input_Opt%thisCPU  = myCPU
-    Input_Opt%amIRoot  = MasterProc
 
     !IF ( MasterProc ) THEN
     IF ( .True. ) THEN
@@ -1400,7 +1399,7 @@ contains
     ENDIF
 
     ! Initialize the TaggedDiag_List (list of wildcards/tags per diagnostic)
-    CALL Init_TaggedDiagList( Input_Opt%amIroot, Diag_List,  &
+    CALL Init_TaggedDiagList( masterproc, Diag_List,  &
                               TaggedDiag_List,   RC         )
 
     IF ( RC /= GC_SUCCESS ) THEN
@@ -1409,8 +1408,8 @@ contains
     ENDIF
 
     IF ( prtDebug ) THEN
-       CALL Print_DiagList( Input_Opt%amIRoot, Diag_List, RC )
-       CALL Print_TaggedDiagList( Input_Opt%amIRoot, TaggedDiag_List, RC )
+       CALL Print_DiagList( masterproc, Diag_List, RC )
+       CALL Print_TaggedDiagList( masterproc, TaggedDiag_List, RC )
     ENDIF
 
     DO I = BEGCHUNK, ENDCHUNK
@@ -3351,7 +3350,7 @@ contains
              ENDIF
 
              ! Warning message
-             IF ( .NOT. FND .AND. Input_Opt%amIRoot ) THEN
+             IF ( .NOT. FND .AND. masterproc ) THEN
                 ErrMsg = 'Cannot find archived production rates for '       // &
                           TRIM(SpcName) // ' - will use value of 0.0. '        // &
                          'To use archived rates, add the following field '      // &
@@ -3378,7 +3377,7 @@ contains
              ENDIF
 
              ! Warning message
-             IF ( .NOT. FND .AND. Input_Opt%amIRoot ) THEN
+             IF ( .NOT. FND .AND. masterproc ) THEN
                 ErrMsg= 'Cannot find archived loss frequencies for '        // &
                         TRIM(SpcName) // ' - will use value of 0.0. '          // &
                         'To use archived rates, add the following field '       // &
@@ -3640,7 +3639,7 @@ contains
     ! Add surface emissions to cam_in
     !-----------------------------------------------------------------------
 
-    print *, "ewl: in chem_timestep_tend, before CESMGC_Emissions_Calc"
+    IF (masterproc) print *, "ewl: in chem_timestep_tend, before CESMGC_Emissions_Calc"
 
     CALL CESMGC_Emissions_Calc( state      = state,            &
                                 hco_pbuf2d = hco_pbuf2d,       &
@@ -3654,7 +3653,7 @@ contains
     ! (stored as SurfaceFlux = -dflx)
     !-----------------------------------------------------------------------
 
-    print *, "ewl: in chem_timestep_tend, before adding drydep flux"
+    IF (masterproc) print *, "ewl: in chem_timestep_tend, before adding drydep flux"
 
     IF ( Input_Opt%LDryD ) THEN
        DO ND = 1, State_Chm(BEGCHUNK)%nDryDep
@@ -3674,7 +3673,7 @@ contains
     ! Add non-surface emissions
     !-----------------------------------------------------------------------
 
-    print *, "ewl: in chem_timestep_tend, before converting species units"
+    IF (masterproc) print *, "ewl: in chem_timestep_tend, before converting species units"
 
     ! Use units of kg/m2 as State_Chm%Species to add emissions fluxes
     CALL Convert_Spc_Units( Input_Opt  = Input_Opt,         &
@@ -3690,7 +3689,7 @@ contains
        CALL Error_Stop( ErrMsg, ThisLoc )
     ENDIF
 
-    print *, "ewl: in chem_timestep_tend, before adding emissions flux"
+    IF (masterproc) print *, "ewl: in chem_timestep_tend, before adding emissions flux"
 
     DO N = 1, pcnst
        M = map2GC(N)
@@ -3707,7 +3706,7 @@ contains
        ENDIF
     ENDDO
 
-    print *, "ewl: in chem_timestep_tend, before converting species units 2"
+    IF (masterproc) print *, "ewl: in chem_timestep_tend, before converting species units 2"
 
     ! Convert back to original unit
     CALL Convert_Spc_Units( Input_Opt  = Input_Opt,         &

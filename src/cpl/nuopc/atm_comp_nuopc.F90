@@ -614,7 +614,7 @@ contains
          stop_ymd=stop_ymd, stop_tod=stop_tod, curr_ymd=curr_ymd, curr_tod=curr_tod, &
          cam_out=cam_out,  cam_in=cam_in)
 
-    print *, "ewl: in atm_comp_nuopc.F90: after cam_init"
+    if (masterproc) print *, "ewl: in atm_comp_nuopc.F90: after cam_init"
 
     if (mediator_present) then
 
@@ -737,7 +737,7 @@ contains
 
     end if ! end of mediator_present if-block
 
-    print *, "ewl: in atm_comp_nuopc.F90: after mediator_present block"
+    if (masterproc) print *, "ewl: in atm_comp_nuopc.F90: after mediator_present block"
 
     call shr_file_setLogUnit (shrlogunit)
 
@@ -754,7 +754,7 @@ contains
        call ESMF_LogWrite(subname//' done', ESMF_LOGMSG_INFO)
     end if
 
-    print *, "ewl: in atm_comp_nuopc.F90: end of InitializeRealize"
+    if (masterproc) print *, "ewl: in atm_comp_nuopc.F90: end of InitializeRealize"
 
   end subroutine InitializeRealize
 
@@ -1015,7 +1015,7 @@ contains
     endif
 #endif
 
-    print *, "ewl: At start of ModelAdvance"
+    if (masterproc) print *, "ewl: At start of ModelAdvance"
 
     !--------------------------------
     ! Query the Component for its clock, importState and exportState
@@ -1104,19 +1104,19 @@ contains
 
        ! Run CAM (run2, run3, run4)
 
-       print *, "ewl: In ModelAdvance: before cam_run2"
+       if (masterproc) print *, "ewl: In ModelAdvance: before cam_run2"
 
        call t_startf ('CAM_run2')
        call cam_run2( cam_out, cam_in )
        call t_stopf  ('CAM_run2')
 
-       print *, "ewl: In ModelAdvance: before cam_run3"
+       if (masterproc) print *, "ewl: In ModelAdvance: before cam_run3"
 
        call t_startf ('CAM_run3')
        call cam_run3( cam_out )
        call t_stopf  ('CAM_run3')
 
-       print *, "ewl: In ModelAdvance: before cam_run4"
+       if (masterproc) print *, "ewl: In ModelAdvance: before cam_run4"
 
        call t_startf ('CAM_run4')
        call cam_run4( cam_out, cam_in, rstwr, nlend, &
@@ -1125,7 +1125,7 @@ contains
 
        ! Advance cam time step
 
-       print *, "ewl: In ModelAdvance: advancing timestep"
+       if (masterproc) print *, "ewl: In ModelAdvance: advancing timestep"
 
        call t_startf ('CAM_adv_timestep')
        call advance_timestep()
@@ -1133,7 +1133,7 @@ contains
 
        ! Run cam radiation/clouds (run1)
 
-       print *, "ewl: In ModelAdvance: before cam_run1"
+       if (masterproc) print *, "ewl: In ModelAdvance: before cam_run1"
 
        call t_startf ('CAM_run1')
        call cam_run1 ( cam_in, cam_out )

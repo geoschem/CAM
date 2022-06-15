@@ -333,8 +333,6 @@ subroutine chem_surfvals_init()
 
    endif
 
-   print *, "ewl: in chem_surfvals_init 2"
-
    if (masterproc) then
       write(iulog,*) ' '
       write(iulog,*) 'chem_surfvals_init: Initial ghg surface values:'

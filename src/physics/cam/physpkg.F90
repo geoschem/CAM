@@ -1556,7 +1556,7 @@ contains
     ! added into the atmosphere as tendency.
     !===================================================
     if (chem_is_active()) then
-       print *, "ewl: cam/physpkg.F90: before chemistry"
+       if (masterproc) print *, "ewl: cam/physpkg.F90: before chemistry"
 
 
        if (trim(cam_take_snapshot_before) == "chem_timestep_tend") then
@@ -1564,12 +1564,12 @@ contains
                     fh2o, surfric, obklen, flx_heat)
        end if
 
-       print *, "ewl: cam/physpkg.F90: before chem_timestep_tend"
+       if (masterproc) print *, "ewl: cam/physpkg.F90: before chem_timestep_tend"
 
        call chem_timestep_tend(state, ptend, cam_in, cam_out, ztodt, &
             pbuf,  fh2o=fh2o)
 
-       print *, "ewl: cam/physpkg.F90: after chem_timestep_tend"
+       if (masterproc) print *, "ewl: cam/physpkg.F90: after chem_timestep_tend"
 
        if ( (trim(cam_take_snapshot_after) == "chem_timestep_tend") .and.     &
             (trim(cam_take_snapshot_before) == trim(cam_take_snapshot_after))) then
@@ -1591,7 +1591,7 @@ contains
     ! Vertical diffusion/pbl calculation
     ! Call vertical diffusion code (pbl, free atmosphere and molecular)
     !===================================================
-    print *, "ewl: cam/physpkg.F90: before vertical diffusion"
+    if (masterproc) print *, "ewl: cam/physpkg.F90: before vertical diffusion"
 
     call t_startf('vertical_diffusion_tend')
 
@@ -1606,7 +1606,7 @@ contains
    !------------------------------------------
    ! Call major diffusion for extended model
    !------------------------------------------
-    print *, "ewl: cam/physpkg.F90: before major diffusion"
+    if (masterproc) print *, "ewl: cam/physpkg.F90: before major diffusion"
 
     if ( waccmx_is('ionosphere') .or. waccmx_is('neutral') ) then
        call waccmx_phys_mspd_tend (ztodt    ,state    ,ptend)
@@ -1634,7 +1634,7 @@ contains
     !===================================================
     ! Rayleigh friction calculation
     !===================================================
-    print *, "ewl: cam/physpkg.F90: before rayleigh friction calculation"
+    if (masterproc) print *, "ewl: cam/physpkg.F90: before rayleigh friction calculation"
 
     call t_startf('rayleigh_friction')
     call rayleigh_friction_tend( ztodt, state, ptend)
@@ -1657,7 +1657,7 @@ contains
     call check_tracers_chng(state, tracerint, "vdiff", nstep, ztodt, cam_in%cflx)
 
     !  aerosol dry deposition processes
-    print *, "ewl: cam/physpkg.F90: before aerosol dry deposition processes...skipping!"
+    if (masterproc) print *, "ewl: cam/physpkg.F90: before aerosol dry deposition processes...skipping!"
 
 !    call t_startf('aero_drydep')
 !
@@ -1688,7 +1688,7 @@ contains
    ! that cam_out%xxxdryxxx fields have already been set for CAM aerosols and cam_out
    ! can be added to for CARMA aerosols.
    if (carma_do_aerosol) then
-     print *, "ewl: cam/physpkg.F90: before carma microphysics"
+     if (masterproc) print *, "ewl: cam/physpkg.F90: before carma microphysics"
 
      call t_startf('carma_timestep_tend')
      call carma_timestep_tend(state, cam_in, cam_out, ptend, ztodt, pbuf, obklen=obklen, ustar=surfric)
@@ -1701,14 +1701,14 @@ contains
     !---------------------------------------------------------------------------------
     !   ... enforce charge neutrality
     !---------------------------------------------------------------------------------
-    print *, "ewl: cam/physpkg.F90: before enforcing charge neutrality"
+    if (masterproc) print *, "ewl: cam/physpkg.F90: before enforcing charge neutrality"
 
     call charge_balance(state, pbuf)
 
     !===================================================
     ! Gravity wave drag
     !===================================================
-    print *, "ewl: cam/physpkg.F90: before gravity wave drag"
+    if (masterproc) print *, "ewl: cam/physpkg.F90: before gravity wave drag"
 
     call t_startf('gw_tend')
 
@@ -1799,7 +1799,7 @@ contains
     ! Call ionosphere routines for extended model if mode is set to ionosphere
     !----------------------------------------------------------------------------
 
-    print *, "ewl: cam/physpkg.F90: before ionosphere routines"
+    if (masterproc) print *, "ewl: cam/physpkg.F90: before ionosphere routines"
 
     if( waccmx_is('ionosphere') ) then
        call waccmx_phys_ion_elec_temp_tend(state, ptend, pbuf, ztodt)
