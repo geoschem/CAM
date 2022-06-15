@@ -3197,45 +3197,48 @@ contains
        IF (Input_Opt%LSETH2O) Input_Opt%LSETH2O = .FALSE.
     ENDIF
 
+!ewl9: Turn off overwriting isLand, isWater, and isIce with CLM land imports, and set
+!ewl9: isSnow to if SNODP > 0.01 (remove dependency on CLM land)
     ! Do this after AirQnt, such that we overwrite GEOS-Chem isLand, isWater and
     ! isIce, which are based on albedo. Rather, we use CLM landFranc, ocnFrac
     ! and iceFrac. We also compute isSnow
     DO J = 1, nY
-       iMaxLoc = MAXLOC( (/ State_Met(LCHNK)%FRLAND(1,J)   + &
-                            State_Met(LCHNK)%FRLANDIC(1,J) + &
-                            State_Met(LCHNK)%FRLAKE(1,J),    &
-                            State_Met(LCHNK)%FRSEAICE(1,J),  &
-                            State_Met(LCHNK)%FROCEAN(1,J)  - &
-                            State_Met(LCHNK)%FRSEAICE(1,J) /) )
-       IF ( iMaxLoc(1) == 3 ) iMaxLoc(1) = 0
-       ! reset ocean to 0
-
-       ! Field      : LWI
-       ! Description: Land/water indices
-       ! Unit       : -
-       ! Dimensions : nX, nY
-       State_Met(LCHNK)%LWI(1,J) = FLOAT( iMaxLoc(1) )
-
-       IF ( iMaxLoc(1) == 0 ) THEN
-          State_Met(LCHNK)%isLand(1,J)  = .False.
-          State_Met(LCHNK)%isWater(1,J) = .True.
-          State_Met(LCHNK)%isIce(1,J)   = .False.
-       ELSEIF ( iMaxLoc(1) == 1 ) THEN
-          State_Met(LCHNK)%isLand(1,J)  = .True.
-          State_Met(LCHNK)%isWater(1,J) = .False.
-          State_Met(LCHNK)%isIce(1,J)   = .False.
-       ELSEIF ( iMaxLoc(1) == 2 ) THEN
-          State_Met(LCHNK)%isLand(1,J)  = .False.
-          State_Met(LCHNK)%isWater(1,J) = .False.
-          State_Met(LCHNK)%isIce(1,J)   = .True.
-       ELSE
-          Write(iulog,*) " iMaxLoc gets value: ", iMaxLoc
-          ErrMsg = 'Failed to figure out land/water'
-          CALL Error_Stop( ErrMsg, ThisLoc )
-       ENDIF
-
-       State_Met(LCHNK)%isSnow(1,J) = ( State_Met(LCHNK)%FRSEAICE(1,J) > 0.0e+0_fp &
-                                   .or. State_Met(LCHNK)%SNODP(1,J) > 0.01 )
+!ewl9       iMaxLoc = MAXLOC( (/ State_Met(LCHNK)%FRLAND(1,J)   + &
+!ewl9                            State_Met(LCHNK)%FRLANDIC(1,J) + &
+!ewl9                            State_Met(LCHNK)%FRLAKE(1,J),    &
+!ewl9                            State_Met(LCHNK)%FRSEAICE(1,J),  &
+!ewl9                            State_Met(LCHNK)%FROCEAN(1,J)  - &
+!ewl9                            State_Met(LCHNK)%FRSEAICE(1,J) /) )
+!ewl9       IF ( iMaxLoc(1) == 3 ) iMaxLoc(1) = 0
+!ewl9       ! reset ocean to 0
+!ewl9
+!ewl9       ! Field      : LWI
+!ewl9       ! Description: Land/water indices
+!ewl9       ! Unit       : -
+!ewl9       ! Dimensions : nX, nY
+!ewl9       State_Met(LCHNK)%LWI(1,J) = FLOAT( iMaxLoc(1) )
+!ewl9
+!ewl9       IF ( iMaxLoc(1) == 0 ) THEN
+!ewl9          State_Met(LCHNK)%isLand(1,J)  = .False.
+!ewl9          State_Met(LCHNK)%isWater(1,J) = .True.
+!ewl9          State_Met(LCHNK)%isIce(1,J)   = .False.
+!ewl9       ELSEIF ( iMaxLoc(1) == 1 ) THEN
+!ewl9          State_Met(LCHNK)%isLand(1,J)  = .True.
+!ewl9          State_Met(LCHNK)%isWater(1,J) = .False.
+!ewl9          State_Met(LCHNK)%isIce(1,J)   = .False.
+!ewl9       ELSEIF ( iMaxLoc(1) == 2 ) THEN
+!ewl9          State_Met(LCHNK)%isLand(1,J)  = .False.
+!ewl9          State_Met(LCHNK)%isWater(1,J) = .False.
+!ewl9          State_Met(LCHNK)%isIce(1,J)   = .True.
+!ewl9       ELSE
+!ewl9          Write(iulog,*) " iMaxLoc gets value: ", iMaxLoc
+!ewl9          ErrMsg = 'Failed to figure out land/water'
+!ewl9          CALL Error_Stop( ErrMsg, ThisLoc )
+!ewl9       ENDIF
+!ewl9
+!ewl9       State_Met(LCHNK)%isSnow(1,J) = ( State_Met(LCHNK)%FRSEAICE(1,J) > 0.0e+0_fp &
+!ewl9                                   .or. State_Met(LCHNK)%SNODP(1,J) > 0.01 )
+       State_Met(LCHNK)%isSnow(1,J) = ( State_Met(LCHNK)%SNODP(1,J) > 0.01 )
 
     ENDDO
 
