@@ -3881,156 +3881,155 @@ contains
     ! ***** M A M   G A S - A E R O S O L   E X C H A N G E *****
     !==============================================================
 
-!ewl15: comment out MAM gas-aerosol exchange. Is this even on???
-!ewl15#if defined( MODAL_AERO )
-!ewl15    ! Repartition SO4 into H2SO4 and so4_a*
-!ewl15    IF ( l_H2SO4 > 0 .AND. l_SO4 > 0 ) THEN
-!ewl15       P = l_H2SO4
-!ewl15       ! SO4_gasRatio is mol(SO4) (gaseous) / mol(SO4) (gaseous+aerosol)
-!ewl15       vmr1(:nY,:nZ,P) = SO4_gasRatio(:nY,:nZ) * vmr1(:nY,:nZ,l_SO4)
-!ewl15       ! binRatio is mol(SO4) (current bin) / mol(SO4) (all bins)
-!ewl15       DO M = 1, ntot_amode
-!ewl15          N = lptr_so4_a_amode(M)
-!ewl15          IF ( N <= 0 ) CYCLE
-!ewl15          P = mapCnst(N)
-!ewl15          vmr1(:nY,:nZ,P) = vmr1(:nY,:nZ,l_SO4)                &
-!ewl15                          * ( 1.0_r8 - SO4_gasRatio(:nY,:nZ) ) &
-!ewl15                          * binRatio(iSulf(M),M,:nY,:nZ)
-!ewl15       ENDDO
-!ewl15    ENDIF
-!ewl15
-!ewl15    ! Amount of chemically-produced H2SO4 (mol/mol)
-!ewl15    del_h2so4_gasprod(:nY,:nZ) = vmr1(:nY,:nZ,l_H2SO4) &
-!ewl15                               - vmr0(:nY,:nZ,l_H2SO4)
-!ewl15
-!ewl15    call aero_model_gasaerexch( loffset           = iFirstCnst - 1,         &
-!ewl15                                ncol              = NCOL,                   &
-!ewl15                                lchnk             = LCHNK,                  &
-!ewl15                                troplev           = Trop_Lev(:),            &
-!ewl15                                delt              = dT,                     &
-!ewl15                                reaction_rates    = reaction_rates,         &
-!ewl15                                tfld              = state%t(:,:),           &
-!ewl15                                pmid              = state%pmid(:,:),        &
-!ewl15                                pdel              = state%pdel(:,:),        &
-!ewl15                                mbar              = mBar,                   &
-!ewl15                                relhum            = relHum(:,:),            &
-!ewl15                                zm                = state%zm(:,:),          &
-!ewl15                                qh2o              = qH2O(:,:),              &
-!ewl15                                cwat              = cldW,                   &
-!ewl15                                cldfr             = cldFrc,                 &
-!ewl15                                cldnum            = nCldWtr,                &
-!ewl15                                airdens           = invariants(:,:,indexm), &
-!ewl15                                invariants        = invariants,             &
-!ewl15                                del_h2so4_gasprod = del_h2so4_gasprod,      &
-!ewl15                                vmr0              = vmr0,                   &
-!ewl15                                vmr               = vmr1,                   &
-!ewl15                                pbuf              = pbuf )
-!ewl15
-!ewl15    ! Repartition MAM SOAs following mapping:
-!ewl15    ! TSOA0 + ASOAN + SOAIE + SOAGX -> soa1_a* + soa2_a*
-!ewl15    ! TSOA1 + ASOA1                 -> soa3_a*
-!ewl15    ! TSOA2 + ASOA2                 -> soa4_a*
-!ewl15    ! TSOA3 + ASOA3                 -> soa5_a*
-!ewl15    ! TSOG0                         -> SOAG0 + SOAG1
-!ewl15    ! TSOG1 + ASOG1                 -> SOAG2
-!ewl15    ! TSOG2 + ASOG2                 -> SOAG3
-!ewl15    ! TSOG3 + ASOG3                 -> SOAG4
-!ewl15
-!ewl15    ! Deal with aerosol SOA species
-!ewl15    ! First deal with lowest two volatility bins
-!ewl15    speciesName_1 = 'TSOA0'
-!ewl15    speciesName_2 = 'ASOAN'
-!ewl15    speciesName_2 = 'SOAIE'
-!ewl15    speciesName_2 = 'SOAGX'
-!ewl15    K1 = get_spc_ndx(TRIM(speciesName_1))
-!ewl15    K2 = get_spc_ndx(TRIM(speciesName_2))
-!ewl15    K3 = get_spc_ndx(TRIM(speciesName_3))
-!ewl15    K4 = get_spc_ndx(TRIM(speciesName_4))
-!ewl15    bulkMass(:nY,:nZ) = 0.0e+00_r8
-!ewl15    DO iBin = 1, 2
-!ewl15       DO M = 1, ntot_amode
-!ewl15          N = lptr2_soa_a_amode(M,iBin)
-!ewl15          IF ( N <= 0 ) CYCLE
-!ewl15          bulkMass(:nY,:nZ) = bulkMass(:nY,:nZ) + state%q(:nY,:nZ,N)
-!ewl15       ENDDO
-!ewl15    ENDDO
-!ewl15    DO iBin = 1, 2
-!ewl15       DO M = 1, ntot_amode
-!ewl15          N = lptr2_soa_a_amode(M,iBin)
-!ewl15          IF ( N <= 0 ) CYCLE
-!ewl15          P = mapCnst(N)
-!ewl15          IF ( P > 0 .AND. K1 > 0 .AND. K2 > 0 .AND. K3 > 0 .AND. K4 > 0 ) THEN
-!ewl15             vmr1(:nY,:nZ,P) = state%q(:nY,:nZ,N) / bulkMass(:nY,:nZ) &
-!ewl15                             * (vmr1(:nY,:nZ,K1) + vmr1(:nY,:nZ,K2) + &
-!ewl15                                vmr1(:nY,:nZ,K3) + vmr1(:nY,:nZ,K4))
-!ewl15          ENDIF
-!ewl15       ENDDO
-!ewl15    ENDDO
-!ewl15
-!ewl15    ! Now deal with other volatility bins
-!ewl15    DO iBin = 3, nsoa
-!ewl15       IF ( iBin == 3 ) THEN
-!ewl15          speciesName_1 = 'TSOA1'
-!ewl15          speciesName_2 = 'ASOA1'
-!ewl15       ELSEIF ( iBin == 4 ) THEN
-!ewl15          speciesName_1 = 'TSOA2'
-!ewl15          speciesName_2 = 'ASOA2'
-!ewl15       ELSEIF ( iBin == 5 ) THEN
-!ewl15          speciesName_1 = 'TSOA3'
-!ewl15          speciesName_2 = 'ASOA3'
-!ewl15       ENDIF
-!ewl15       K1 = get_spc_ndx(TRIM(speciesName_1))
-!ewl15       K2 = get_spc_ndx(TRIM(speciesName_2))
-!ewl15       bulkMass(:nY,:nZ) = 0.0e+00_r8
-!ewl15       DO M = 1, ntot_amode
-!ewl15          N = lptr2_soa_a_amode(M,iBin)
-!ewl15          IF ( N <= 0 ) CYCLE
-!ewl15          bulkMass(:nY,:nZ) = bulkMass(:nY,:nZ) + state%q(:nY,:nZ,N)
-!ewl15       ENDDO
-!ewl15       DO M = 1, ntot_amode
-!ewl15          N = lptr2_soa_a_amode(M,iBin)
-!ewl15          IF ( N <= 0 ) CYCLE
-!ewl15          P = mapCnst(N)
-!ewl15          IF ( P > 0 .AND. K1 > 0 .AND. K2 > 0 ) THEN
-!ewl15             vmr1(:nY,:nZ,P) = state%q(:nY,:nZ,N) / bulkMass(:nY,:nZ) &
-!ewl15                             * (vmr1(:nY,:nZ,K1) + vmr1(:nY,:nZ,K2))
-!ewl15          ENDIF
-!ewl15       ENDDO
-!ewl15    ENDDO
-!ewl15
-!ewl15    ! Now deal with gaseous SOA species
-!ewl15    ! Deal with lowest two volatility bins
-!ewl15    speciesName_1 = 'TSOG0'
-!ewl15    K1 = get_spc_ndx(TRIM(speciesName_1))
-!ewl15    N = lptr2_soa_g_amode(1)
-!ewl15    P = mapCnst(N)
-!ewl15    vmr1(:nY,:nZ,P) = vmr0(:nY,:nZ,P) / (vmr0(:nY,:nZ,P) + vmr0(:nY,:nZ,mapCnst(lptr2_soa_g_amode(2)))) &
-!ewl15                    * vmr1(:nY,:nZ,K1)
-!ewl15    N = lptr2_soa_g_amode(2)
-!ewl15    P = mapCnst(N)
-!ewl15    vmr1(:nY,:nZ,P) = vmr0(:nY,:nZ,P) / (vmr0(:nY,:nZ,P) + vmr0(:nY,:nZ,mapCnst(lptr2_soa_g_amode(1)))) &
-!ewl15                    * vmr1(:nY,:nZ,K1)
-!ewl15
-!ewl15    ! Deal with other volatility bins
-!ewl15    DO iBin = 3, nsoa
-!ewl15       N = lptr2_soa_g_amode(iBin)
-!ewl15       P = mapCnst(N)
-!ewl15       IF ( iBin == 3 ) THEN
-!ewl15          speciesName_1 = 'TSOG1'
-!ewl15          speciesName_2 = 'ASOG1'
-!ewl15       ELSEIF ( iBin == 4 ) THEN
-!ewl15          speciesName_1 = 'TSOG2'
-!ewl15          speciesName_2 = 'ASOG2'
-!ewl15       ELSEIF ( iBin == 5 ) THEN
-!ewl15          speciesName_1 = 'TSOG3'
-!ewl15          speciesName_2 = 'ASOG3'
-!ewl15       ENDIF
-!ewl15       K1 = get_spc_ndx(TRIM(speciesName_1))
-!ewl15       K2 = get_spc_ndx(TRIM(speciesName_2))
-!ewl15       IF ( P > 0 .AND. K1 > 0 .AND. K2 > 0 ) vmr1(:nY,:nZ,P) = vmr1(:nY,:nZ,K1) + vmr1(:nY,:nZ,K2)
-!ewl15    ENDDO
-!ewl15
-!ewl15#endif
+#if defined( MODAL_AERO )
+    ! Repartition SO4 into H2SO4 and so4_a*
+    IF ( l_H2SO4 > 0 .AND. l_SO4 > 0 ) THEN
+       P = l_H2SO4
+       ! SO4_gasRatio is mol(SO4) (gaseous) / mol(SO4) (gaseous+aerosol)
+       vmr1(:nY,:nZ,P) = SO4_gasRatio(:nY,:nZ) * vmr1(:nY,:nZ,l_SO4)
+       ! binRatio is mol(SO4) (current bin) / mol(SO4) (all bins)
+       DO M = 1, ntot_amode
+          N = lptr_so4_a_amode(M)
+          IF ( N <= 0 ) CYCLE
+          P = mapCnst(N)
+          vmr1(:nY,:nZ,P) = vmr1(:nY,:nZ,l_SO4)                &
+                          * ( 1.0_r8 - SO4_gasRatio(:nY,:nZ) ) &
+                          * binRatio(iSulf(M),M,:nY,:nZ)
+       ENDDO
+    ENDIF
+
+    ! Amount of chemically-produced H2SO4 (mol/mol)
+    del_h2so4_gasprod(:nY,:nZ) = vmr1(:nY,:nZ,l_H2SO4) &
+                               - vmr0(:nY,:nZ,l_H2SO4)
+
+    call aero_model_gasaerexch( loffset           = iFirstCnst - 1,         &
+                                ncol              = NCOL,                   &
+                                lchnk             = LCHNK,                  &
+                                troplev           = Trop_Lev(:),            &
+                                delt              = dT,                     &
+                                reaction_rates    = reaction_rates,         &
+                                tfld              = state%t(:,:),           &
+                                pmid              = state%pmid(:,:),        &
+                                pdel              = state%pdel(:,:),        &
+                                mbar              = mBar,                   &
+                                relhum            = relHum(:,:),            &
+                                zm                = state%zm(:,:),          &
+                                qh2o              = qH2O(:,:),              &
+                                cwat              = cldW,                   &
+                                cldfr             = cldFrc,                 &
+                                cldnum            = nCldWtr,                &
+                                airdens           = invariants(:,:,indexm), &
+                                invariants        = invariants,             &
+                                del_h2so4_gasprod = del_h2so4_gasprod,      &
+                                vmr0              = vmr0,                   &
+                                vmr               = vmr1,                   &
+                                pbuf              = pbuf )
+
+    ! Repartition MAM SOAs following mapping:
+    ! TSOA0 + ASOAN + SOAIE + SOAGX -> soa1_a* + soa2_a*
+    ! TSOA1 + ASOA1                 -> soa3_a*
+    ! TSOA2 + ASOA2                 -> soa4_a*
+    ! TSOA3 + ASOA3                 -> soa5_a*
+    ! TSOG0                         -> SOAG0 + SOAG1
+    ! TSOG1 + ASOG1                 -> SOAG2
+    ! TSOG2 + ASOG2                 -> SOAG3
+    ! TSOG3 + ASOG3                 -> SOAG4
+
+    ! Deal with aerosol SOA species
+    ! First deal with lowest two volatility bins
+    speciesName_1 = 'TSOA0'
+    speciesName_2 = 'ASOAN'
+    speciesName_2 = 'SOAIE'
+    speciesName_2 = 'SOAGX'
+    K1 = get_spc_ndx(TRIM(speciesName_1))
+    K2 = get_spc_ndx(TRIM(speciesName_2))
+    K3 = get_spc_ndx(TRIM(speciesName_3))
+    K4 = get_spc_ndx(TRIM(speciesName_4))
+    bulkMass(:nY,:nZ) = 0.0e+00_r8
+    DO iBin = 1, 2
+       DO M = 1, ntot_amode
+          N = lptr2_soa_a_amode(M,iBin)
+          IF ( N <= 0 ) CYCLE
+          bulkMass(:nY,:nZ) = bulkMass(:nY,:nZ) + state%q(:nY,:nZ,N)
+       ENDDO
+    ENDDO
+    DO iBin = 1, 2
+       DO M = 1, ntot_amode
+          N = lptr2_soa_a_amode(M,iBin)
+          IF ( N <= 0 ) CYCLE
+          P = mapCnst(N)
+          IF ( P > 0 .AND. K1 > 0 .AND. K2 > 0 .AND. K3 > 0 .AND. K4 > 0 ) THEN
+             vmr1(:nY,:nZ,P) = state%q(:nY,:nZ,N) / bulkMass(:nY,:nZ) &
+                             * (vmr1(:nY,:nZ,K1) + vmr1(:nY,:nZ,K2) + &
+                                vmr1(:nY,:nZ,K3) + vmr1(:nY,:nZ,K4))
+          ENDIF
+       ENDDO
+    ENDDO
+
+    ! Now deal with other volatility bins
+    DO iBin = 3, nsoa
+       IF ( iBin == 3 ) THEN
+          speciesName_1 = 'TSOA1'
+          speciesName_2 = 'ASOA1'
+       ELSEIF ( iBin == 4 ) THEN
+          speciesName_1 = 'TSOA2'
+          speciesName_2 = 'ASOA2'
+       ELSEIF ( iBin == 5 ) THEN
+          speciesName_1 = 'TSOA3'
+          speciesName_2 = 'ASOA3'
+       ENDIF
+       K1 = get_spc_ndx(TRIM(speciesName_1))
+       K2 = get_spc_ndx(TRIM(speciesName_2))
+       bulkMass(:nY,:nZ) = 0.0e+00_r8
+       DO M = 1, ntot_amode
+          N = lptr2_soa_a_amode(M,iBin)
+          IF ( N <= 0 ) CYCLE
+          bulkMass(:nY,:nZ) = bulkMass(:nY,:nZ) + state%q(:nY,:nZ,N)
+       ENDDO
+       DO M = 1, ntot_amode
+          N = lptr2_soa_a_amode(M,iBin)
+          IF ( N <= 0 ) CYCLE
+          P = mapCnst(N)
+          IF ( P > 0 .AND. K1 > 0 .AND. K2 > 0 ) THEN
+             vmr1(:nY,:nZ,P) = state%q(:nY,:nZ,N) / bulkMass(:nY,:nZ) &
+                             * (vmr1(:nY,:nZ,K1) + vmr1(:nY,:nZ,K2))
+          ENDIF
+       ENDDO
+    ENDDO
+
+    ! Now deal with gaseous SOA species
+    ! Deal with lowest two volatility bins
+    speciesName_1 = 'TSOG0'
+    K1 = get_spc_ndx(TRIM(speciesName_1))
+    N = lptr2_soa_g_amode(1)
+    P = mapCnst(N)
+    vmr1(:nY,:nZ,P) = vmr0(:nY,:nZ,P) / (vmr0(:nY,:nZ,P) + vmr0(:nY,:nZ,mapCnst(lptr2_soa_g_amode(2)))) &
+                    * vmr1(:nY,:nZ,K1)
+    N = lptr2_soa_g_amode(2)
+    P = mapCnst(N)
+    vmr1(:nY,:nZ,P) = vmr0(:nY,:nZ,P) / (vmr0(:nY,:nZ,P) + vmr0(:nY,:nZ,mapCnst(lptr2_soa_g_amode(1)))) &
+                    * vmr1(:nY,:nZ,K1)
+
+    ! Deal with other volatility bins
+    DO iBin = 3, nsoa
+       N = lptr2_soa_g_amode(iBin)
+       P = mapCnst(N)
+       IF ( iBin == 3 ) THEN
+          speciesName_1 = 'TSOG1'
+          speciesName_2 = 'ASOG1'
+       ELSEIF ( iBin == 4 ) THEN
+          speciesName_1 = 'TSOG2'
+          speciesName_2 = 'ASOG2'
+       ELSEIF ( iBin == 5 ) THEN
+          speciesName_1 = 'TSOG3'
+          speciesName_2 = 'ASOG3'
+       ENDIF
+       K1 = get_spc_ndx(TRIM(speciesName_1))
+       K2 = get_spc_ndx(TRIM(speciesName_2))
+       IF ( P > 0 .AND. K1 > 0 .AND. K2 > 0 ) vmr1(:nY,:nZ,P) = vmr1(:nY,:nZ,K1) + vmr1(:nY,:nZ,K2)
+    ENDDO
+
+#endif
 
     !==============================================================
     ! ***** W E T   D E P O S I T I O N  (rainout + washout) *****
@@ -4111,59 +4110,58 @@ contains
                               + (MMR_End(:nY,:nZ,M)-MMR_Beg(:nY,:nZ,M))/dT
     ENDDO
 
-!ewl10: comment out application of tendenencies to MAM aerosols. Is this even on?
-!ewl10#if defined( MODAL_AERO )
-!ewl10    ! Here apply tendencies to MAM aerosols
-!ewl10    ! Initial mass in bin SM is stored as state%q(N)
-!ewl10    ! Final mass in bin SM is stored as binRatio(SM,M) * State_Chm(P)
-!ewl10    !
-!ewl10    ! We decide to apply chemical tendencies to all MAM aerosols,
-!ewl10    ! except so4, for which the chemically-produced sulfate gets
-!ewl10    ! partitioned in aero_model_gasaerexch.
-!ewl10    DO M = 1, ntot_amode
-!ewl10       DO SM = 1, nspec_amode(M)
-!ewl10          N = lmassptr_amode(SM,M)
-!ewl10          P = mapCnst(N)
-!ewl10          IF ( P <= 0 ) CYCLE
-!ewl10          ! Apply tendency from MAM gasaerexch
-!ewl10          ptend%q(:nY,:nZ,N) = ptend%q(:nY,:nZ,N) &
-!ewl10                             + (vmr1(:nY,:nZ,P) - vmr0(:nY,:nZ,P))/dT &
-!ewl10                                  * adv_mass(P) / MWDry
-!ewl10          P = map2MAM4(SM,M)
-!ewl10          IF ( P <= 0 ) CYCLE
-!ewl10          K = map2GC(P)
-!ewl10          IF ( K <= 0 .or. K == iSO4 ) CYCLE
-!ewl10          ! Apply MAM4 chemical tendencies owing to GEOS-Chem aerosol processing
-!ewl10          ptend%q(:nY,:nZ,N) = ptend%q(:nY,:nZ,N)                                  &
-!ewl10                             + (binRatio(SM,M,:nY,:nZ) *                           &
-!ewl10                                REAL(State_Chm(LCHNK)%Species(1,:nY,nZ:1:-1,K),r8) &
-!ewl10                                  * adv_mass(mapCnst(N)) / adv_mass(mapCnst(P))    &
-!ewl10                                - state%q(:nY,:nZ,N))/dT
-!ewl10       ENDDO
-!ewl10       N = numptr_amode(M)
-!ewl10       P = mapCnst(N)
-!ewl10       IF ( P <= 0 ) CYCLE
-!ewl10       ptend%q(:nY,:nZ,N) = ptend%q(:nY,:nZ,N) &
-!ewl10                          + (vmr1(:nY,:nZ,P) - vmr0(:nY,:nZ,P))/dT &
-!ewl10                               * adv_mass(P) / MWDry
-!ewl10    ENDDO
-!ewl10    N = cH2SO4
-!ewl10    P = l_H2SO4
-!ewl10    IF ( P > 0 ) THEN
-!ewl10       ptend%q(:nY,:nZ,N) = ptend%q(:nY,:nZ,N) &
-!ewl10                          + (vmr1(:nY,:nZ,P) - vmr0(:nY,:nZ,P))/dT &
-!ewl10                               * adv_mass(P) / MWDry
-!ewl10    ENDIF
-!ewl10    DO iBin = 1, nsoa
-!ewl10       N = lptr2_soa_g_amode(iBin)
-!ewl10       P = mapCnst(N)
-!ewl10       IF ( P > 0 ) THEN
-!ewl10          ptend%q(:nY,:nZ,N) = ptend%q(:nY,:nZ,N) &
-!ewl10                             + (vmr1(:nY,:nZ,P) - vmr0(:nY,:nZ,P))/dT &
-!ewl10                                  * adv_mass(P) / MWDry
-!ewl10       ENDIF
-!ewl10    ENDDO
-!ewl10#endif
+#if defined( MODAL_AERO )
+    ! Here apply tendencies to MAM aerosols
+    ! Initial mass in bin SM is stored as state%q(N)
+    ! Final mass in bin SM is stored as binRatio(SM,M) * State_Chm(P)
+    !
+    ! We decide to apply chemical tendencies to all MAM aerosols,
+    ! except so4, for which the chemically-produced sulfate gets
+    ! partitioned in aero_model_gasaerexch.
+    DO M = 1, ntot_amode
+       DO SM = 1, nspec_amode(M)
+          N = lmassptr_amode(SM,M)
+          P = mapCnst(N)
+          IF ( P <= 0 ) CYCLE
+          ! Apply tendency from MAM gasaerexch
+          ptend%q(:nY,:nZ,N) = ptend%q(:nY,:nZ,N) &
+                             + (vmr1(:nY,:nZ,P) - vmr0(:nY,:nZ,P))/dT &
+                                  * adv_mass(P) / MWDry
+          P = map2MAM4(SM,M)
+          IF ( P <= 0 ) CYCLE
+          K = map2GC(P)
+          IF ( K <= 0 .or. K == iSO4 ) CYCLE
+          ! Apply MAM4 chemical tendencies owing to GEOS-Chem aerosol processing
+          ptend%q(:nY,:nZ,N) = ptend%q(:nY,:nZ,N)                                  &
+                             + (binRatio(SM,M,:nY,:nZ) *                           &
+                                REAL(State_Chm(LCHNK)%Species(1,:nY,nZ:1:-1,K),r8) &
+                                  * adv_mass(mapCnst(N)) / adv_mass(mapCnst(P))    &
+                                - state%q(:nY,:nZ,N))/dT
+       ENDDO
+       N = numptr_amode(M)
+       P = mapCnst(N)
+       IF ( P <= 0 ) CYCLE
+       ptend%q(:nY,:nZ,N) = ptend%q(:nY,:nZ,N) &
+                          + (vmr1(:nY,:nZ,P) - vmr0(:nY,:nZ,P))/dT &
+                               * adv_mass(P) / MWDry
+    ENDDO
+    N = cH2SO4
+    P = l_H2SO4
+    IF ( P > 0 ) THEN
+       ptend%q(:nY,:nZ,N) = ptend%q(:nY,:nZ,N) &
+                          + (vmr1(:nY,:nZ,P) - vmr0(:nY,:nZ,P))/dT &
+                               * adv_mass(P) / MWDry
+    ENDIF
+    DO iBin = 1, nsoa
+       N = lptr2_soa_g_amode(iBin)
+       P = mapCnst(N)
+       IF ( P > 0 ) THEN
+          ptend%q(:nY,:nZ,N) = ptend%q(:nY,:nZ,N) &
+                             + (vmr1(:nY,:nZ,P) - vmr0(:nY,:nZ,P))/dT &
+                                  * adv_mass(P) / MWDry
+       ENDIF
+    ENDDO
+#endif
 
     DO N = 1, gas_pcnst
        ! See definition of map2chm
