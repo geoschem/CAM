@@ -4071,144 +4071,135 @@ contains
     ! CH4, OCS, N2O, CFC11, CFC12).
     ! Note: This will overwrite the UCX boundary conditions
 
-!ewl17: comment out setting boundary conditions?? what is this?
-!ewl17    CALL flbc_set( vmr1(:nY,:nZ,:), nY, LCHNK, mapCnst )
-!ewl17
-!ewl17    IF ( ghg_chem ) THEN
-!ewl17       CALL ghg_chem_set_flbc( vmr1, nY )
-!ewl17    ENDIF
-!ewl17
-!ewl17    DO N = 1, gas_pcnst
-!ewl17       ! See definition of map2chm
-!ewl17       M = map2chm(N)
-!ewl17       IF ( M <= 0 ) CYCLE
-!ewl17       State_Chm(LCHNK)%Species(1,:nY,nZ:1:-1,M) = vmr1(:nY,:nZ,N) * &
-!ewl17                        adv_mass(N) / MWDry
-!ewl17    ENDDO
+    CALL flbc_set( vmr1(:nY,:nZ,:), nY, LCHNK, mapCnst )
 
-!ewl18: comment out checking units
-!ewl18    ! Make sure State_Chm(LCHNK) is back in kg/kg dry!
-!ewl18    IF ( TRIM(State_Chm(LCHNK)%Spc_Units) /= 'kg/kg dry' ) THEN
-!ewl18       Write(iulog,*) 'Current  unit = ', TRIM(State_Chm(LCHNK)%Spc_Units)
-!ewl18       Write(iulog,*) 'Expected unit = kg/ kg dry'
-!ewl18       CALL ENDRUN('Incorrect unit in GEOS-Chem State_Chm%Species')
-!ewl18    ENDIF
+    IF ( ghg_chem ) THEN
+       CALL ghg_chem_set_flbc( vmr1, nY )
+    ENDIF
 
-!ewl19: comment out resetting H2O to initial value? what is this?
-!ewl19    ! Reset H2O MMR to the initial value (no chemistry tendency in H2O just yet)
-!ewl19    State_Chm(LCHNK)%Species(1,:,:,iH2O) = MMR_Beg(:,:,iH2O)
+    DO N = 1, gas_pcnst
+       ! See definition of map2chm
+       M = map2chm(N)
+       IF ( M <= 0 ) CYCLE
+       State_Chm(LCHNK)%Species(1,:nY,nZ:1:-1,M) = vmr1(:nY,:nZ,N) * &
+                        adv_mass(N) / MWDry
+    ENDDO
 
-!ewl20: comment out setting unadvected species data. what is this?
-!ewl20    ! Store unadvected species data
-!ewl20    SlsData = 0.0e+0_r8
-!ewl20    DO N = 1, nSls
-!ewl20       M = map2GC_Sls(N)
-!ewl20       IF ( M <= 0 ) CYCLE
-!ewl20       SlsData(:nY,nZ:1:-1,N) = REAL(State_Chm(LCHNK)%Species(1,:nY,:nZ,M),r8)
-!ewl20    ENDDO
-!ewl20    CALL set_short_lived_species( SlsData, LCHNK, nY, pbuf )
+    ! Make sure State_Chm(LCHNK) is back in kg/kg dry!
+    IF ( TRIM(State_Chm(LCHNK)%Spc_Units) /= 'kg/kg dry' ) THEN
+       Write(iulog,*) 'Current  unit = ', TRIM(State_Chm(LCHNK)%Spc_Units)
+       Write(iulog,*) 'Expected unit = kg/ kg dry'
+       CALL ENDRUN('Incorrect unit in GEOS-Chem State_Chm%Species')
+    ENDIF
 
-!ewl21: comment out applying tendencies to geos-chem species?
-!ewl21    ! Apply tendencies to GEOS-Chem species
-!ewl21    DO N = 1, pcnst
-!ewl21       M = map2GC(N)
-!ewl21       IF ( M <= 0 ) CYCLE
-!ewl21       ! Add change in mass mixing ratio to tendencies.
-!ewl21       ! For NEU wet deposition, the wet removal rates are added to
-!ewl21       ! ptend.
-!ewl21       MMR_End(:nY,:nZ,M)     = REAL(State_Chm(LCHNK)%Species(1,:nY,:nZ,M),r8)
-!ewl21       ptend%q(:nY,nZ:1:-1,N) = ptend%q(:nY,nZ:1:-1,N) &
-!ewl21                              + (MMR_End(:nY,:nZ,M)-MMR_Beg(:nY,:nZ,M))/dT
-!ewl21    ENDDO
+    ! Reset H2O MMR to the initial value (no chemistry tendency in H2O just yet)
+    State_Chm(LCHNK)%Species(1,:,:,iH2O) = MMR_Beg(:,:,iH2O)
 
-!ewl22: comment out application of tendenencies to MAM aerosols. Is this even on?
-!ewl22#if defined( MODAL_AERO )
-!ewl22    ! Here apply tendencies to MAM aerosols
-!ewl22    ! Initial mass in bin SM is stored as state%q(N)
-!ewl22    ! Final mass in bin SM is stored as binRatio(SM,M) * State_Chm(P)
-!ewl22    !
-!ewl22    ! We decide to apply chemical tendencies to all MAM aerosols,
-!ewl22    ! except so4, for which the chemically-produced sulfate gets
-!ewl22    ! partitioned in aero_model_gasaerexch.
-!ewl22    DO M = 1, ntot_amode
-!ewl22       DO SM = 1, nspec_amode(M)
-!ewl22          N = lmassptr_amode(SM,M)
-!ewl22          P = mapCnst(N)
-!ewl22          IF ( P <= 0 ) CYCLE
-!ewl22          ! Apply tendency from MAM gasaerexch
-!ewl22          ptend%q(:nY,:nZ,N) = ptend%q(:nY,:nZ,N) &
-!ewl22                             + (vmr1(:nY,:nZ,P) - vmr0(:nY,:nZ,P))/dT &
-!ewl22                                  * adv_mass(P) / MWDry
-!ewl22          P = map2MAM4(SM,M)
-!ewl22          IF ( P <= 0 ) CYCLE
-!ewl22          K = map2GC(P)
-!ewl22          IF ( K <= 0 .or. K == iSO4 ) CYCLE
-!ewl22          ! Apply MAM4 chemical tendencies owing to GEOS-Chem aerosol processing
-!ewl22          ptend%q(:nY,:nZ,N) = ptend%q(:nY,:nZ,N)                                  &
-!ewl22                             + (binRatio(SM,M,:nY,:nZ) *                           &
-!ewl22                                REAL(State_Chm(LCHNK)%Species(1,:nY,nZ:1:-1,K),r8) &
-!ewl22                                  * adv_mass(mapCnst(N)) / adv_mass(mapCnst(P))    &
-!ewl22                                - state%q(:nY,:nZ,N))/dT
-!ewl22       ENDDO
-!ewl22       N = numptr_amode(M)
-!ewl22       P = mapCnst(N)
-!ewl22       IF ( P <= 0 ) CYCLE
-!ewl22       ptend%q(:nY,:nZ,N) = ptend%q(:nY,:nZ,N) &
-!ewl22                          + (vmr1(:nY,:nZ,P) - vmr0(:nY,:nZ,P))/dT &
-!ewl22                               * adv_mass(P) / MWDry
-!ewl22    ENDDO
-!ewl22    N = cH2SO4
-!ewl22    P = l_H2SO4
-!ewl22    IF ( P > 0 ) THEN
-!ewl22       ptend%q(:nY,:nZ,N) = ptend%q(:nY,:nZ,N) &
-!ewl22                          + (vmr1(:nY,:nZ,P) - vmr0(:nY,:nZ,P))/dT &
-!ewl22                               * adv_mass(P) / MWDry
-!ewl22    ENDIF
-!ewl22    DO iBin = 1, nsoa
-!ewl22       N = lptr2_soa_g_amode(iBin)
-!ewl22       P = mapCnst(N)
-!ewl22       IF ( P > 0 ) THEN
-!ewl22          ptend%q(:nY,:nZ,N) = ptend%q(:nY,:nZ,N) &
-!ewl22                             + (vmr1(:nY,:nZ,P) - vmr0(:nY,:nZ,P))/dT &
-!ewl22                                  * adv_mass(P) / MWDry
-!ewl22       ENDIF
-!ewl22    ENDDO
-!ewl22#endif
+    ! Store unadvected species data
+    SlsData = 0.0e+0_r8
+    DO N = 1, nSls
+       M = map2GC_Sls(N)
+       IF ( M <= 0 ) CYCLE
+       SlsData(:nY,nZ:1:-1,N) = REAL(State_Chm(LCHNK)%Species(1,:nY,:nZ,M),r8)
+    ENDDO
+    CALL set_short_lived_species( SlsData, LCHNK, nY, pbuf )
 
-!ewl23: comment out calculating tendencies (is that what this is?)
-!ewl23    DO N = 1, gas_pcnst
-!ewl23       ! See definition of map2chm
-!ewl23       M = map2chm(N)
-!ewl23       IF ( M > 0 ) THEN
-!ewl23          mmr_tend(:nY,:nZ,N) = ( REAL(State_Chm(LCHNK)%Species(1,:nY,nZ:1:-1,M),r8) - mmr_tend(:nY,:nZ,N) ) / dT
-!ewl23       ELSEIF ( M < 0 ) THEN
-!ewl23          mmr_tend(:nY,:nZ,N) = ptend%q(:nY,:nZ,-M)
-!ewl23       ENDIF
-!ewl23    ENDDO
+    ! Apply tendencies to GEOS-Chem species
+    DO N = 1, pcnst
+       M = map2GC(N)
+       IF ( M <= 0 ) CYCLE
+       ! Add change in mass mixing ratio to tendencies.
+       ! For NEU wet deposition, the wet removal rates are added to
+       ! ptend.
+       MMR_End(:nY,:nZ,M)     = REAL(State_Chm(LCHNK)%Species(1,:nY,:nZ,M),r8)
+       ptend%q(:nY,nZ:1:-1,N) = ptend%q(:nY,nZ:1:-1,N) &
+                              + (MMR_End(:nY,:nZ,M)-MMR_Beg(:nY,:nZ,M))/dT
+    ENDDO
 
-!ewl24: comment out applying water tendency? Is this an entry in input.geos?
-!ewl24    IF ( Input_Opt%applyQtend ) THEN
-!ewl24       ! Apply GEOS-Chem's H2O mixing ratio tendency to CAM's specific humidity
-!ewl24       ! This requires to set lq(cQ) = lq(cH2O) ( = .True. )
-!ewl24       ptend%q(:,:,cQ) = ptend%q(:,:,cH2O)
-!ewl24    ENDIF
+!ewl10: comment out application of tendenencies to MAM aerosols. Is this even on?
+!ewl10#if defined( MODAL_AERO )
+!ewl10    ! Here apply tendencies to MAM aerosols
+!ewl10    ! Initial mass in bin SM is stored as state%q(N)
+!ewl10    ! Final mass in bin SM is stored as binRatio(SM,M) * State_Chm(P)
+!ewl10    !
+!ewl10    ! We decide to apply chemical tendencies to all MAM aerosols,
+!ewl10    ! except so4, for which the chemically-produced sulfate gets
+!ewl10    ! partitioned in aero_model_gasaerexch.
+!ewl10    DO M = 1, ntot_amode
+!ewl10       DO SM = 1, nspec_amode(M)
+!ewl10          N = lmassptr_amode(SM,M)
+!ewl10          P = mapCnst(N)
+!ewl10          IF ( P <= 0 ) CYCLE
+!ewl10          ! Apply tendency from MAM gasaerexch
+!ewl10          ptend%q(:nY,:nZ,N) = ptend%q(:nY,:nZ,N) &
+!ewl10                             + (vmr1(:nY,:nZ,P) - vmr0(:nY,:nZ,P))/dT &
+!ewl10                                  * adv_mass(P) / MWDry
+!ewl10          P = map2MAM4(SM,M)
+!ewl10          IF ( P <= 0 ) CYCLE
+!ewl10          K = map2GC(P)
+!ewl10          IF ( K <= 0 .or. K == iSO4 ) CYCLE
+!ewl10          ! Apply MAM4 chemical tendencies owing to GEOS-Chem aerosol processing
+!ewl10          ptend%q(:nY,:nZ,N) = ptend%q(:nY,:nZ,N)                                  &
+!ewl10                             + (binRatio(SM,M,:nY,:nZ) *                           &
+!ewl10                                REAL(State_Chm(LCHNK)%Species(1,:nY,nZ:1:-1,K),r8) &
+!ewl10                                  * adv_mass(mapCnst(N)) / adv_mass(mapCnst(P))    &
+!ewl10                                - state%q(:nY,:nZ,N))/dT
+!ewl10       ENDDO
+!ewl10       N = numptr_amode(M)
+!ewl10       P = mapCnst(N)
+!ewl10       IF ( P <= 0 ) CYCLE
+!ewl10       ptend%q(:nY,:nZ,N) = ptend%q(:nY,:nZ,N) &
+!ewl10                          + (vmr1(:nY,:nZ,P) - vmr0(:nY,:nZ,P))/dT &
+!ewl10                               * adv_mass(P) / MWDry
+!ewl10    ENDDO
+!ewl10    N = cH2SO4
+!ewl10    P = l_H2SO4
+!ewl10    IF ( P > 0 ) THEN
+!ewl10       ptend%q(:nY,:nZ,N) = ptend%q(:nY,:nZ,N) &
+!ewl10                          + (vmr1(:nY,:nZ,P) - vmr0(:nY,:nZ,P))/dT &
+!ewl10                               * adv_mass(P) / MWDry
+!ewl10    ENDIF
+!ewl10    DO iBin = 1, nsoa
+!ewl10       N = lptr2_soa_g_amode(iBin)
+!ewl10       P = mapCnst(N)
+!ewl10       IF ( P > 0 ) THEN
+!ewl10          ptend%q(:nY,:nZ,N) = ptend%q(:nY,:nZ,N) &
+!ewl10                             + (vmr1(:nY,:nZ,P) - vmr0(:nY,:nZ,P))/dT &
+!ewl10                                  * adv_mass(P) / MWDry
+!ewl10       ENDIF
+!ewl10    ENDDO
+!ewl10#endif
 
-!ewl25: comment out calculating CESM-GC diagnostics
-!ewl25    CALL CESMGC_Diag_Calc( Input_Opt  = Input_Opt,         &
-!ewl25                           State_Chm  = State_Chm(LCHNK),  &
-!ewl25                           State_Diag = State_Diag(LCHNK), &
-!ewl25                           State_Grid = State_Grid(LCHNK), &
-!ewl25                           State_Met  = State_Met(LCHNK),  &
-!ewl25                           cam_in     = cam_in,            &
-!ewl25                           state      = state,             &
-!ewl25                           mmr_tend   = mmr_tend,          &
-!ewl25                           LCHNK      = LCHNK             )
+    DO N = 1, gas_pcnst
+       ! See definition of map2chm
+       M = map2chm(N)
+       IF ( M > 0 ) THEN
+          mmr_tend(:nY,:nZ,N) = ( REAL(State_Chm(LCHNK)%Species(1,:nY,nZ:1:-1,M),r8) - mmr_tend(:nY,:nZ,N) ) / dT
+       ELSEIF ( M < 0 ) THEN
+          mmr_tend(:nY,:nZ,N) = ptend%q(:nY,:nZ,-M)
+       ENDIF
+    ENDDO
 
-!ewl26: comment out this - what is it??
-!ewl26    IF ( ghg_chem ) THEN
-!ewl26       ptend%lq(1) = .True.
-!ewl26       CALL outfld( 'CT_H2O_GHG', ptend%q(:,:,1), PCOLS, LCHNK )
-!ewl26    ENDIF
+    IF ( Input_Opt%applyQtend ) THEN
+       ! Apply GEOS-Chem's H2O mixing ratio tendency to CAM's specific humidity
+       ! This requires to set lq(cQ) = lq(cH2O) ( = .True. )
+       ptend%q(:,:,cQ) = ptend%q(:,:,cH2O)
+    ENDIF
+
+    CALL CESMGC_Diag_Calc( Input_Opt  = Input_Opt,         &
+                           State_Chm  = State_Chm(LCHNK),  &
+                           State_Diag = State_Diag(LCHNK), &
+                           State_Grid = State_Grid(LCHNK), &
+                           State_Met  = State_Met(LCHNK),  &
+                           cam_in     = cam_in,            &
+                           state      = state,             &
+                           mmr_tend   = mmr_tend,          &
+                           LCHNK      = LCHNK             )
+
+    IF ( ghg_chem ) THEN
+       ptend%lq(1) = .True.
+       CALL outfld( 'CT_H2O_GHG', ptend%q(:,:,1), PCOLS, LCHNK )
+    ENDIF
 
     !! Debug statements
     !! Ozone tendencies
@@ -4217,13 +4208,12 @@ contains
     !   Write(iulog,*) " MMR_End = ", MMR_End(1,:,iO3)
     !ENDIF
 
-!ewl27: comment out resetting water flux
-!ewl27    IF (PRESENT(fh2o)) THEN
-!ewl27       fh2o(:nY) = 0.0e+0_r8
-!ewl27       !DO L = 1, nZ
-!ewl27       !   fh2o(:nY) = fh2o(:nY) + ptend%q(:nY,L,iH2O)*state%pdel(:nY,L)/Gravit
-!ewl27       !ENDDO
-!ewl27    ENDIF
+    IF (PRESENT(fh2o)) THEN
+       fh2o(:nY) = 0.0e+0_r8
+       !DO L = 1, nZ
+       !   fh2o(:nY) = fh2o(:nY) + ptend%q(:nY,L,iH2O)*state%pdel(:nY,L)/Gravit
+       !ENDDO
+    ENDIF
 
     ! Nullify all pointers
     Nullify(PblH    )
