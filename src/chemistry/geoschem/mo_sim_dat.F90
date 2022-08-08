@@ -40,7 +40,6 @@
       ! aerosols, as those will be constituents. MAM requires that there
       ! is a linear mapping between solsym and constituents
 
-      ! ewl notes: added HMS (for GEOS-Chem 13.3)
       solsym(:355) = (/ &
       'ACET           ', 'ACTA           ', 'AERI           ', &
       'ALD2           ', 'ALK4           ', 'ASOA1          ', &
@@ -49,38 +48,38 @@
       'AONITA         ', 'AROMP4         ', 'AROMP5         ', &
       'ATOOH          ', 'BALD           ', 'BCPI           ', &
       'BCPO           ', 'BENZ           ', 'BENZP          ', &
-      'Br             ', 'Br2            ', 'BrCl           ', &
-      'BrNO2          ', 'BrNO3          ', 'BrO            ', &
-      'BrSALA         ', 'BrSALC         ', 'BZCO3H         ', &
+      'BR             ', 'BR2            ', 'BRCL           ', &
+      'BRNO2          ', 'BRNO3          ', 'BRO            ', &
+      'BRSALA         ', 'BRSALC         ', 'BZCO3H         ', &
       'BZPAN          ', 'C2H2           ', 'C2H4           ', &
-      'C2H6           ', 'C3H8           ', 'CCl4           ', &
+      'C2H6           ', 'C3H8           ', 'CCL4           ', &
       'CFC11          ', 'CFC113         ', 'CFC114         ', &
-      'CFC115         ', 'CFC12          ', 'CH2Br2         ', &
-      'CH2Cl2         ', 'CH2I2          ', 'CH2IBr         ', &
-      'CH2ICl         ', 'CH2O           ', 'CH3Br          ', &
-      'CH3CCl3        ', 'CH3Cl          ', 'CH3I           ', &
-      'CH4            ', 'CHBr3          ', 'CHCl3          ', &
-      'Cl             ', 'Cl2            ', 'Cl2O2          ', &
-      'ClNO2          ', 'ClNO3          ', 'ClO            ', &
-      'ClOO           ', 'CLOCK          ', 'CO             ', &
+      'CFC115         ', 'CFC12          ', 'CH2BR2         ', &
+      'CH2CL2         ', 'CH2I2          ', 'CH2IBR         ', &
+      'CH2ICL         ', 'CH2O           ', 'CH3BR          ', &
+      'CH3CCL3        ', 'CH3CL          ', 'CH3I           ', &
+      'CH4            ', 'CHBR3          ', 'CHCL3          ', &
+      'CL             ', 'CL2            ', 'CL2O2          ', &
+      'CLNO2          ', 'CLNO3          ', 'CLO            ', &
+      'CLOO           ', 'CLOCK          ', 'CO             ', &
       'CSL            ', 'DMS            ', 'DST1           ', &
       'DST2           ', 'DST3           ', 'DST4           ', &
       'EOH            ', 'ETHLN          ', 'ETHN           ', &
       'ETHP           ', 'ETNO3          ', 'ETP            ', &
       'GLYC           ', 'GLYX           ', 'H1211          ', &
       'H1301          ', 'H2402          ', 'H2O            ', &
-      'H2O2           ', 'HAC            ', 'HBr            ', &
-      'HC5A           ', 'HCFC123        ', 'HCFC141b       ', &
-      'HCFC142b       ', 'HCFC22         ', 'HCl            ', &
+      'H2O2           ', 'HAC            ', 'HBR            ', &
+      'HC5A           ', 'HCFC123        ', 'HCFC141B       ', &
+      'HCFC142B       ', 'HCFC22         ', 'HCL            ', &
       'HCOOH          ', 'HI             ', 'HMHP           ', &
       'HMML           ', 'HMS            ', 'HNO2           ', &
-      'HNO3           ', 'HNO4           ', 'HOBr           ', &
-      'HOCl           ', 'HOI            ', 'HONIT          ', &
+      'HNO3           ', 'HNO4           ', 'HOBR           ', &
+      'HOCL           ', 'HOI            ', 'HONIT          ', &
       'HPALD1         ', 'HPALD2         ', 'HPALD3         ', &
       'HPALD4         ', 'HPETHNL        ', 'I              ', &
       'I2             ', 'I2O2           ', 'I2O3           ', &
-      'I2O4           ', 'IBr            ', 'ICHE           ', &
-      'ICl            ', 'ICN            ', 'ICPDH          ', &
+      'I2O4           ', 'IBR            ', 'ICHE           ', &
+      'ICL            ', 'ICN            ', 'ICPDH          ', &
       'IDC            ', 'IDCHP          ', 'IDHDP          ', &
       'IDHPE          ', 'IDN            ', 'IEPOXA         ', &
       'IEPOXB         ', 'IEPOXD         ', 'IHN1           ', &
@@ -102,11 +101,11 @@
       'MVKHCB         ', 'MVKHP          ', 'MVKN           ', &
       'MVKPC          ', 'N2O            ', 'N2O5           ', &
       'NH3            ', 'NH4            ', 'NIT            ', &
-      'NITs           ', 'NO             ', 'NO2            ', &
+      'NITS           ', 'NO             ', 'NO2            ', &
       'NO3            ', 'NPHEN          ', 'NPRNO3         ', &
-      'O3             ', 'OClO           ', 'OCPI           ', &
+      'O3             ', 'OCLO           ', 'OCPI           ', &
       'OCPO           ', 'OCS            ', 'OIO            ', &
-      'PAN            ', 'pFe            ', 'PHEN           ', &
+      'PAN            ', 'PFE            ', 'PHEN           ', &
       'PIP            ', 'PP             ', 'PPN            ', &
       'PROPNN         ', 'PRPE           ', 'PRPN           ', &
       'PYAC           ', 'R4N2           ', 'R4P            ', &
@@ -115,7 +114,7 @@
       'RIPD           ', 'RP             ', 'SALA           ', &
       'SALAAL         ', 'SALACL         ', 'SALC           ', &
       'SALCAL         ', 'SALCCL         ', 'SO2            ', &
-      'SO4            ', 'SO4s           ', 'SOAGX          ', &
+      'SO4            ', 'SO4S           ', 'SOAGX          ', &
       'SOAIE          ', 'SOAP           ', 'SOAS           ', &
       'TOLU           ', 'TSOA0          ', 'TSOA1          ', &
       'TSOA2          ', 'TSOA3          ', 'TSOG0          ', &
@@ -136,8 +135,8 @@
       'LISOPNO3       ', 'LNRO2H         ', 'LNRO2N         ', &
       'NRO2           ', 'NAP            ', 'LTRO2H         ', &
       'LTRO2N         ', 'TRO2           ', 'LXRO2H         ', &
-      'LXRO2N         ', 'XRO2           ', 'POx            ', &
-      'LOx            ', 'PCO            ', 'LCO            ', &
+      'LXRO2N         ', 'XRO2           ', 'POX            ', &
+      'LOX            ', 'PCO            ', 'LCO            ', &
       'PSO4           ', 'LCH4           ', 'PH2O2          ', &
       'N              ', 'ETO            ', 'HPALD2OO       ', &
       'HPALD1OO       ', 'INA            ', 'C4HVP1         ', &
