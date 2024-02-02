@@ -1176,6 +1176,10 @@ contains
     ! note that pht_alias_mult is actually 1 for non-mapped species but we will not rely on it
     do m = 1, phtcnt
         if(pht_to_fjx_map(m) .le. 0) then
+            ! for jo2_a branch to 2*O only
+            if(m .eq. 5) then
+                reaction_rates(i,pver+1-k,rxt_tag_map(m)) = 0.0_r8
+            endif
             ! cannot do mapping as this species is non-existent or will be handled by multiplier
             cycle
         endif
