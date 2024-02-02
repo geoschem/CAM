@@ -372,10 +372,11 @@ contains
     !  ... save photo rxn rates for HEMCO ParaNOx, chem_mech rxns:
     !    jo3_b            (  8)   O3 + hv ->  O + O2
     !    jno2             ( 16)   NO2 + hv ->  NO + O
-    ! (hplin, 5/17/21)
     !
-    ! Note hplin 1/25/22: might have to check if this rxt_idx available for
-    ! all sub-mechanisms in CAM-chem
+    ! The reactions jo2 and jo3_b exist in the mechanisms that would use
+    ! the ParaNOx ship plume extension. If they do not exist, then the indices
+    ! would not be found and the HCO_IN_JNO2 and HCO_IN_JOH fields would not
+    ! be zero and the extension would have no effect.
     !-----------------------------------------------------------------------
     rxt_jno2_idx  = get_rxt_ndx( 'jno2' )
     rxt_joh_idx   = get_rxt_ndx( 'jo3_b' )
@@ -386,7 +387,7 @@ contains
 !-----------------------------------------------------------------------
   subroutine gas_phase_chemdr(lchnk, ncol, imozart, q, &
                               phis, zm, zi, calday, &
-                              tfld, pmid, pdel, pint,  &
+                              tfld, pmid, pdel, pint, rpdel, rpdeldry, &
                               cldw, troplev, troplevchem, &
                               ncldwtr, ufld, vfld,  &
                               delt, ps, &
@@ -401,8 +402,9 @@ contains
     !         ebi, hov, fully implicit, and/or rodas algorithms.
     !-----------------------------------------------------------------------
 
+    use phys_control,      only : cam_physpkg_is
     use chem_mods,         only : nabscol, nfs, indexm, clscnt4
-    use physconst,         only : rga
+    use physconst,         only : rga, gravit
     use mo_photo,          only : set_ub_col, setcol, table_photo
     use mo_exp_sol,        only : exp_sol
     use mo_imp_sol,        only : imp_sol
@@ -423,7 +425,7 @@ contains
     use mo_mean_mass,      only : set_mean_mass
     use cam_history,       only : outfld
     use wv_saturation,     only : qsat
-    use constituents,      only : cnst_mw
+    use constituents,      only : cnst_mw, cnst_type
     use mo_ghg_chem,       only : ghg_chem_set_rates, ghg_chem_set_flbc
     use mo_sad,            only : sad_strat_calc
     use charge_neutrality, only : charge_balance
@@ -482,6 +484,8 @@ contains
     real(r8),target,intent(in)    :: tfld(pcols,pver)               ! midpoint temperature (K)
     real(r8),       intent(in)    :: pmid(pcols,pver)               ! midpoint pressures (Pa)
     real(r8),       intent(in)    :: pdel(pcols,pver)               ! pressure delta about midpoints (Pa)
+    real(r8),       intent(in)    :: rpdel(pcols,pver)              ! reciprocal pressure delta about midpoints (Pa)
+    real(r8),       intent(in)    :: rpdeldry(pcols,pver)           ! reciprocal dry pressure delta about midpoints (Pa)
     real(r8),       intent(in)    :: ufld(pcols,pver)               ! zonal velocity (m/s)
     real(r8),       intent(in)    :: vfld(pcols,pver)               ! meridional velocity (m/s)
     real(r8),       intent(in)    :: cldw(pcols,pver)               ! cloud water (kg/kg)
@@ -1208,7 +1212,6 @@ contains
        !  ... save photo rxn rates for HEMCO ParaNOx, chem_mech rxns:
        !    jo3_b            (  8)   O3 + hv ->  O + O2
        !    jno2             ( 16)   NO2 + hv ->  NO + O
-       ! (hplin, 5/17/21)
        !-----------------------------------------------------------------------
        ! get the rxn rate [1/s] and write to pbuf
        if(rxt_jno2_idx > 0 .and. hco_jno2_idx > 0) then
@@ -1219,7 +1222,7 @@ contains
 
        if(rxt_joh_idx > 0 .and. hco_joh_idx > 0) then
          call pbuf_get_field(pbuf, hco_joh_idx, hco_j_tmp_fld)
-         ! this is already in chunk, write /pcols, pver/
+         ! this is already in chunk, write /pcols/ at surface
          hco_j_tmp_fld(:ncol) = reaction_rates(:ncol,pver,rxt_joh_idx)
        endif
     endif
@@ -1449,7 +1452,17 @@ contains
     do m = 1,pcnst
        n = map2chm( m )
        if ( n > 0 ) then
-         cflx(:ncol,m)      = cflx(:ncol,m) - sflx(:ncol,n)
+         if (cam_physpkg_is("cam_dev")) then
+           ! apply to qtend array
+           if (cnst_type(m).eq.'dry') then
+             qtend(:ncol,pver,m) = qtend(:ncol,pver,m) - sflx(:ncol,n)*rpdeldry(:ncol,pver)*gravit
+           else
+             qtend(:ncol,pver,m) = qtend(:ncol,pver,m) - sflx(:ncol,n)*rpdel(:ncol,pver)*gravit
+           end if
+         else
+           ! apply to emissions array
+           cflx(:ncol,m) = cflx(:ncol,m) - sflx(:ncol,n)
+         end if
          drydepflx(:ncol,m) = sflx(:ncol,n)
          wetdepflx_diag(:ncol,n) = wetdepflx(:ncol,m)
        endif

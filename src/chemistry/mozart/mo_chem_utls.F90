@@ -3,13 +3,12 @@ module mo_chem_utls
 
   private
   public :: get_spc_ndx, get_het_ndx, get_extfrc_ndx, get_rxt_ndx, get_inv_ndx
-  public :: utls_chem_is
 
   save
 
 contains
 
-  integer function get_spc_ndx( spc_name, compare_uppercase )
+  integer function get_spc_ndx( spc_name, ignore_case )
     !-----------------------------------------------------------------------
     !     ... return overall species index associated with spc_name
     !-----------------------------------------------------------------------
@@ -24,7 +23,7 @@ contains
     !     ... dummy arguments
     !-----------------------------------------------------------------------
     character(len=*), intent(in)           :: spc_name
-    logical,          intent(in), optional :: compare_uppercase
+    logical,          intent(in), optional :: ignore_case
 
     !-----------------------------------------------------------------------
     !     ... local variables
@@ -34,8 +33,8 @@ contains
     logical :: match
 
     convert_to_upper = .false.
-    if ( present( compare_uppercase ) ) then
-       convert_to_upper = compare_uppercase
+    if ( present( ignore_case ) ) then
+       convert_to_upper = ignore_case
     endif
 
     get_spc_ndx = -1
@@ -173,16 +172,5 @@ contains
     end do
 
   end function get_rxt_ndx
-
-  logical function utls_chem_is (name) result(chem_is)
-    use string_utils, only : to_lower
-
-    character(len=*), intent(in) :: name
-    chem_is = .false.
-    if ( to_lower(name) == 'mozart' ) then
-       chem_is = .true.
-    endif
-
-  end function utls_chem_is
 
 end module mo_chem_utls
