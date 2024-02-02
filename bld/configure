@@ -2191,11 +2191,11 @@ sub write_filepath
     }
 
     # hplin 2/2/24 cc-fjx
-    print $fh "$chem_src_dir/geoschem_src/GeosCore\n";
-    print $fh "$chem_src_dir/geoschem_src/GeosUtil\n";
-    print $fh "$chem_src_dir/geoschem_src/Headers\n";
-    print $fh "$chem_src_dir/geoschem_src/ISORROPIA\n";
-    print $fh "$chem_src_dir/geoschem_src/KPP/fullchem\n";
+    print $fh "$camsrcdir/src/chemistry/geoschem/geoschem_src/GeosCore\n";
+    print $fh "$camsrcdir/src/chemistry/geoschem/geoschem_src/GeosUtil\n";
+    print $fh "$camsrcdir/src/chemistry/geoschem/geoschem_src/Headers\n";
+    print $fh "$camsrcdir/src/chemistry/geoschem/geoschem_src/ISORROPIA\n";
+    print $fh "$camsrcdir/src/chemistry/geoschem/geoschem_src/KPP/fullchem\n";
 
     if ($chem =~ /_mam/) {
 	print $fh "$camsrcdir/src/chemistry/modal_aero\n";
