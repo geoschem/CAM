@@ -1180,6 +1180,10 @@ contains
             if(m .eq. 5) then
                 reaction_rates(i,pver+1-k,rxt_tag_map(m)) = 0.0_r8
             endif
+            ! for jn2o5_b branch to NO2 + NO3 only
+            if(m .eq. 14) then
+                reaction_rates(i,pver+1-k,rxt_tag_map(m)) = 0.0_r8
+            endif
             ! cannot do mapping as this species is non-existent or will be handled by multiplier
             cycle
         endif
